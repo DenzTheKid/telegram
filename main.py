@@ -115,6 +115,68 @@ def owner_only(func):
     return wrapper
 
 # =========================
+# FITUR BARU: .sharepm - BROADCAST KE SEMUA PRIVATE CHAT
+# =========================
+@client.on(events.NewMessage(pattern=r"\.sharepm$", func=lambda e: e.is_reply))
+@owner_only
+async def share_to_all_private_chats(event):
+    """Broadcast pesan ke semua chat private/personal"""
+    reply = await event.get_reply_message()
+    if not reply:
+        await event.reply("⚠️ Balas pesan yang ingin di-share ke semua private chat.")
+        return
+        
+    processing_msg = await event.reply("🔄 Memproses broadcast ke semua private chat...")
+    
+    sent_count = 0
+    error_count = 0
+    skipped_count = 0
+    
+    async for dialog in client.iter_dialogs():
+        try:
+            # Hanya kirim ke chat personal/private (bukan grup/channel)
+            if dialog.is_user and not dialog.entity.bot:  # Skip bot
+                try:
+                    await client.send_message(dialog.id, reply)
+                    sent_count += 1
+                    await asyncio.sleep(1)  # Delay untuk hindari spam
+                    
+                    # Update progress setiap 5 pesan
+                    if sent_count % 5 == 0:
+                        await processing_msg.edit(f"🔄 Mengirim ke private chat...\n✅ Berhasil: {sent_count}\n❌ Gagal: {error_count}\n⏭️ Dilewati: {skipped_count}")
+                        
+                except Exception as e:
+                    error_count += 1
+                    logger.warning(f"Gagal kirim ke {dialog.name}: {e}")
+                    
+        except Exception as e:
+            skipped_count += 1
+            continue
+    
+    # Final report
+    report_msg = f"""
+📨 **BROADCAST PRIVATE CHAT COMPLETE**
+
+📊 **Hasil:**
+✅ **Berhasil**: {sent_count} chat
+❌ **Gagal**: {error_count} chat  
+⏭️ **Dilewati**: {skipped_count} chat
+
+💡 **Catatan:**
+• Hanya mengirim ke chat personal/private
+• Bot otomatis dilewati
+• Delay 1 detik antar pesan untuk hindari spam
+
+━━━━━━━━━━━━━━━━━━
+🤖 Bot by denz | @denzwel1
+"""
+    
+    await processing_msg.edit(report_msg)
+    
+    # Kirim juga laporan ke saved messages
+    await client.send_message('me', f"📨 Broadcast PM selesai:\nBerhasil: {sent_count}\nGagal: {error_count}\nDilewati: {skipped_count}")
+
+# =========================
 # FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP (IMPROVED VERSION)
 # =========================
 @client.on(events.ChatAction)
@@ -1113,7 +1175,7 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .fitur (UPDATED)
+# FITUR: .fitur (UPDATED DENGAN .sharepm)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
 async def fitur_list(event):
@@ -1141,9 +1203,10 @@ async def fitur_list(event):
 • `.lagu` (reply lagu) — Simpan lagu
 • `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
 
-👥 **Manajemen Grup**
+👥 **Manajemen Grup & Broadcast**
 • `.u <nama>` — Ubah nama grup langsung
 • `.sharegrup` (reply pesan) — Broadcast ke semua grup
+• `.sharepm` (reply pesan) — Broadcast ke semua private chat
 • `.grpinfo` — Info grup saat ini
 • `.listgrp` — List semua grup yang diikuti
 • `.checkgroups` — Manual check semua grup
@@ -1201,11 +1264,13 @@ async def help_handler(event):
 • `.get <judul>` - Search & download options
 • `.yt <link>` - Download from YouTube link
 
-👥 **Group Management:**
+👥 **Group Management & Broadcast:**
 • `.grpinfo` - Current group info
 • `.listgrp` - List all groups
 • `.checkgroups` - Manual check all groups
 • `.checkadmin` - Check admin rights
+• `.sharegrup` - Broadcast to all groups
+• `.sharepm` - Broadcast to all private chats
 • `.testnotif` - Test notification system
 • **Auto-Notification** - Get notified when bot is added to new groups
 """
