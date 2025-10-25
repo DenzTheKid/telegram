@@ -60,6 +60,7 @@ try:
     API_ID = os.getenv('API_ID')
     API_HASH = os.getenv('API_HASH')
     SESSION_NAME = os.getenv('SESSION_NAME', 'userbot')
+    SESSION_STRING = os.getenv('SESSION_STRING')  # Untuk string session
     
     logger.info(f"🔧 API_ID: {API_ID}")
     logger.info(f"🔧 API_HASH: {API_HASH}")
@@ -87,12 +88,21 @@ try:
     from telethon.tl.types import Channel, InputChatUploadedPhoto
     from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
     from telethon.tl.types import InputPhoto
+    from telethon.sessions import StringSession  # Untuk string session
+    
     logger.info("✅ Telethon modules imported successfully")
 except ImportError as e:
     logger.error(f"❌ Failed to import Telethon modules: {e}")
     sys.exit(1)
 
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+# Initialize client dengan string session jika ada
+if SESSION_STRING:
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    logger.info("✅ Using string session")
+else:
+    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    logger.info("✅ Using file session")
+
 DATA_FILE = "userbot_data.json"
 
 # =========================
@@ -147,11 +157,14 @@ start_time = time.time()
 @owner_only
 async def server_status(event):
     try:
+        me = await client.get_me()
         status_text = f"""
 🖥 **USERBOT STATUS**
 • **Platform**: Railway
 • **Python**: {sys.version.split()[0]}
 • **Uptime**: {time.time() - start_time:.0f} detik
+• **User**: {me.first_name}
+• **Phone**: {me.phone}
 
 ✅ **Bot is running on Railway**
 📊 **Data tersimpan**: {len([v for v in data.values() if v])} items
@@ -468,7 +481,7 @@ async def keep_alive():
     while True:
         try:
             me = await client.get_me()
-            logger.info(f"💚 Bot is alive - {me.first_name}")
+            logger.info(f"💚 Bot is alive - {me.first_name} ({me.phone})")
             await asyncio.sleep(300)  # Check every 5 minutes
         except Exception as e:
             logger.error(f"❌ Keep alive error: {e}")
@@ -482,15 +495,34 @@ async def main():
         os.makedirs('downloads')
     
     try:
-        await client.start()
-        logger.info("✅ Telegram client started successfully")
+        # Start client - handle both string session dan file session
+        if SESSION_STRING:
+            await client.start()
+            logger.info("✅ Client started with string session")
+        else:
+            # Untuk file session, coba start tanpa input
+            await client.start()
+            logger.info("✅ Client started with file session")
+        
+        # Cek jika user sudah authorized
+        if not await client.is_user_authorized():
+            logger.error("❌ Client not authorized. Please generate string session locally first.")
+            
+            # Jika menggunakan string session tapi tidak authorized
+            if SESSION_STRING:
+                logger.error("❌ String session invalid or expired.")
+            else:
+                logger.error("❌ File session not found or expired.")
+            
+            sys.exit(1)
         
         await init_owner()
         
         # Start keep alive task
         asyncio.create_task(keep_alive())
         
-        logger.info("🎉 Userbot started successfully on Railway!")
+        me = await client.get_me()
+        logger.info(f"🎉 Userbot started successfully for {me.first_name}!")
         logger.info("💚 Bot will stay online 24/7")
         
         # Run bot
