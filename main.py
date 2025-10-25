@@ -798,128 +798,81 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .fitur
+# FITUR DOWNLOAD AUDIO OTOMATIS: .ytdl
 # =========================
-@client.on(events.NewMessage(pattern=r"\.fitur$"))
-async def fitur_list(event):
-    fitur_text = """
-🤖 **Daftar Fitur Userbot:**
-
-🎵 **Musik & Download**
-• `.song <judul>` — Cari lagu di YouTube
-• `.music <judul>` — Cari musik dengan saran
-• `.dl <judul>` — Download lagu (alternatif)
-• `.get <judul>` — Cari & download lagu
-• `.yt <link>` — Download dari YouTube
-
-📸 **Gambar & Media**
-• `.p` — Kirim gambar tersimpan
-• `.p` (reply gambar) — Simpan/ubah gambar
-• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
-
-💬 **Pesan Tersimpan**
-• `.tw` — Kirim pesan tersimpan
-• `.tw` (reply pesan) — Simpan pesan .tw
-• `.c` — Kirim pesan tersimpan  
-• `.c` (reply pesan) — Simpan pesan .c
-• `.lagu` — Kirim lagu tersimpan
-• `.lagu` (reply lagu) — Simpan lagu
-• `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
-
-👥 **Manajemen Grup**
-• `.u <nama>` — Ubah nama grup langsung
-• `.sharegrup` (reply pesan) — Broadcast ke semua grup
-
-ℹ️ **Info & Status**
-• `.status` — Lihat status server
-• `.fitur` — Lihat semua fitur bot
-• `.debug` — Info debug untuk troubleshooting
-• `.checkadmin` — Cek status admin bot
-• `.clean` — Bersihkan semua data
-• `.info` — Info data tersimpan
-
-🔐 **Hanya untuk owner bot**
-"""
-    await event.reply(fitur_text)
-
-# =========================
-# BASIC TEST COMMANDS
-# =========================
-@client.on(events.NewMessage(pattern=r'\.ping'))
-async def ping_handler(event):
-    await event.reply('🏓 Pong!')
-
-@client.on(events.NewMessage(pattern=r'\.help'))
-async def help_handler(event):
-    help_text = """
-🤖 **Basic Commands:**
-• `.ping` - Test bot response
-• `.status` - Bot status
-• `.help` - This message
-• `.fitur` - All features
-• `.debug` - Debug info
-• `.checkadmin` - Check admin status
-• `.clean` - Clean all saved data
-• `.info` - Show saved data info
-
-🎵 **Music & Download:**
-• `.song <judul>` - Search songs on YouTube
-• `.music <judul>` - Search music with suggestions
-• `.dl <judul>` - Download song (alternatives)
-• `.get <judul>` - Search & download options
-• `.yt <link>` - Download from YouTube link
-"""
-    await event.reply(help_text)
-
-# =========================
-# KEEP ALIVE & START BOT
-# =========================
-start_time = time.time()
-
-async def keep_alive():
-    while True:
+@client.on(events.NewMessage(pattern=r"\.ytdl (.+)"))
+@owner_only
+async def download_audio(event):
+    try:
+        url = event.pattern_match.group(1).strip()
+        
+        if not ("youtube.com" in url or "youtu.be" in url):
+            await event.reply("❌ Bukan link YouTube yang valid.")
+            return
+        
+        download_msg = await event.reply("📥 Mendownload audio dari YouTube...\n⏳ Ini mungkin butuh beberapa menit...")
+        
         try:
-            me = await client.get_me()
-            logger.info(f"💚 Bot is alive - {me.first_name}")
-            await asyncio.sleep(300)
+            import yt_dlp
+            import os
+            
+            # Setup yt-dlp options untuk audio saja
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': 'downloads/%(title)s.%(ext)s',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'quiet': True,
+                'no_warnings': True,
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Download info dulu
+                info = ydl.extract_info(url, download=False)
+                title = info.get('title', 'Unknown Title')
+                duration = info.get('duration', 0)
+                
+                # Cek durasi (max 10 menit untuk menghindari file terlalu besar)
+                if duration > 600:  # 10 menit dalam detik
+                    await download_msg.edit(f"❌ Video terlalu panjang ({duration//60} menit). Maksimal 10 menit.")
+                    return
+                
+                await download_msg.edit(f"🎵 **{title}**\n⏱️ {duration//60}:{duration%60:02d}\n\n📥 Mulai download...")
+                
+                # Download audio
+                ydl.download([url])
+                
+                # Cari file yang didownload
+                audio_file = None
+                for file in os.listdir('downloads'):
+                    if file.endswith('.mp3') and title.replace('/', '_') in file:
+                        audio_file = f"downloads/{file}"
+                        break
+                
+                if audio_file and os.path.exists(audio_file):
+                    # Kirim audio file
+                    await client.send_file(
+                        event.chat_id,
+                        audio_file,
+                        caption=f"🎵 **{title}**\n✅ Download selesai!",
+                        attributes=None
+                    )
+                    await download_msg.delete()
+                    
+                    # Hapus file setelah dikirim
+                    try:
+                        os.remove(audio_file)
+                    except:
+                        pass
+                else:
+                    await download_msg.edit("❌ Gagal menemukan file audio setelah download.")
+                    
         except Exception as e:
-            logger.error(f"Keep alive error: {e}")
-            await asyncio.sleep(60)
-
-async def main():
-    logger.info("🤖 Starting main function...")
-    
-    try:
-        # Test connection first
-        logger.info("🔐 Testing connection...")
-        await client.start()
-        logger.info("✅ Connected to Telegram!")
-        
-        await init_owner()
-        
-        # Start keep alive
-        asyncio.create_task(keep_alive())
-        
-        logger.info("🎉 Bot is ready! Waiting for messages...")
-        
-        await client.run_until_disconnected()
-        
-    except Exception as e:
-        logger.error(f"❌ Fatal error in main: {e}")
-        sys.exit(1)
-
-if __name__ == '__main__':
-    try:
-        # Create event loop properly
-        if sys.platform == 'win32':
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-        
-    except KeyboardInterrupt:
-        logger.info("⏹️ Bot stopped by user")
-    except Exception as e:
-        logger.error(f"❌ Fatal error: {e}")
-    finally:
-        logger.info("🔴 Bot stopped")
+            error_msg = str(e)
+            if "FFmpeg" in error_msg:
+                await download_msg.edit("❌ Error: FFmpeg tidak tersedia. Bot butuh FFmpeg untuk konversi audio.")
+            elif "Private video" in error_msg:
+                await download_msg.edit("❌
