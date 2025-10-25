@@ -804,265 +804,40 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .genqr (GENERATE QR CODE - FIXED VERSION)
+# FITUR: .genqr (MANUAL SESSION GUIDE - COMPATIBLE)
 # =========================
 @client.on(events.NewMessage(pattern=r'\.genqr'))
 @owner_only
-async def generate_qr_command(event):
-    """Generate QR code untuk login akun baru"""
+async def generate_qr_manual(event):
+    """Manual guide untuk generate session - Compatible Version"""
     
-    processing_msg = await event.reply("🔄 Generating QR code...")
+    guide_text = """
+🔐 **CARA GENERATE SESSION UNTUK AKUN BARU:**
+
+**📱 Method 1: Session Generator Script (Recommended)**
+1. Buat file `session_generator.py` dengan content berikut:
+```python
+from telethon.sync import TelegramClient
+from telethon.sessions import StringSession
+
+API_ID = 27037133
+API_HASH = "0698732c74d471bca5b7fbba076c52b7"
+
+print("📱 Telegram Session Generator")
+print("=" * 40)
+print("Scan QR code yang muncul...")
+
+with TelegramClient(StringSession(), API_ID, API_HASH) as client:
+    client.start()
+    session_string = client.session.save()
+    me = client.get_me()
     
-    try:
-        # Buat client temporary untuk generate QR
-        temp_client = TelegramClient(
-            StringSession(), 
-            API_ID, 
-            API_HASH
-        )
-        
-        await temp_client.connect()
-        
-        # Method manual untuk QR login yang kompatibel
-        try:
-            from telethon.tl.functions.auth import ExportLoginTokenRequest
-            
-            # Request login token
-            result = await temp_client(ExportLoginTokenRequest(
-                api_id=API_ID,
-                api_hash=API_HASH
-            ))
-            
-            # Cek jika result memiliki token
-            if hasattr(result, 'token'):
-                token = result.token
-            else:
-                await processing_msg.edit("❌ Versi Telethon tidak mendukung QR login.")
-                return
-                
-        except Exception as token_error:
-            await processing_msg.edit(f"❌ Gagal mendapatkan token: {token_error}")
-            return
-        
-        # Generate QR code
-        qr_data = f"tg://login?token={token.decode()}"
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(qr_data)
-        qr.make(fit=True)
-        
-        # Create image in memory
-        img_buffer = BytesIO()
-        img = qr.make_image(fill_color="black", back_color="white")
-        img.save(img_buffer, format='PNG')
-        img_buffer.seek(0)
-        
-        # Kirim QR code sebagai photo
-        caption = """
-📱 **SCAN QR CODE INI**
-
-**Cara Scan:**
-1. Buka Telegram di HP
-2. Pergi ke **Settings > Devices > Link Desktop Device**  
-3. Scan QR code ini
-4. Tunggu sampai berhasil login
-
-⏳ QR code berlaku 10-15 menit
-🔒 Aman untuk akun Anda
-        """
-        
-        await processing_msg.delete()
-        sent_qr = await client.send_file(
-            event.chat_id,
-            img_buffer,
-            caption=caption,
-            force_document=False
-        )
-        
-        # Tunggu user scan dan login (timeout 2 menit)
-        await event.reply("⏳ **Menunggu scan...** Silakan scan QR code di atas dengan Telegram di HP Anda.")
-        
-        try:
-            # Tunggu login dengan polling
-            for i in range(12):  # 2 menit dengan interval 10 detik
-                await asyncio.sleep(10)
-                try:
-                    # Coba dapatkan info user
-                    me = await temp_client.get_me()
-                    if me:
-                        break
-                except:
-                    if i == 11:  # Timeout setelah 2 menit
-                        raise asyncio.TimeoutError()
-                    continue
-            
-            # Dapatkan session string setelah login berhasil
-            session_string = temp_client.session.save()
-            me = await temp_client.get_me()
-            
-            # Kirim session string ke private chat (aman)
-            success_msg = f"""
-✅ **LOGIN BERHASIL!**
-
-👤 **Account:** {me.first_name}
-📞 **Phone:** {me.phone}  
-🆔 **User ID:** {me.id}
-
-🔐 **SESSION STRING:**
-```{session_string}```
-
-💡 **Simpan string ini untuk ditambahkan ke environment variables**
-📝 **Contoh:** SESSION_2={session_string}
-            """
-            
-            await client.send_message('me', success_msg)
-            await event.reply("✅ Login berhasil! Cek **Saved Messages** untuk session string.")
-            
-            # Hapus QR code dari chat untuk keamanan
-            await asyncio.sleep(5)
-            await sent_qr.delete()
-            
-        except asyncio.TimeoutError:
-            await event.reply("❌ Waktu habis! QR code expired. Gunakan `.genqr` lagi untuk generate baru.")
-        except Exception as login_error:
-            await event.reply(f"❌ Gagal login: {login_error}")
-            
-    except Exception as e:
-        await processing_msg.edit(f"❌ Error: {str(e)}")
-    finally:
-        try:
-            await temp_client.disconnect()
-        except:
-            pass
-
-# =========================
-# FITUR: .fitur
-# =========================
-@client.on(events.NewMessage(pattern=r"\.fitur$"))
-async def fitur_list(event):
-    fitur_text = """
-🤖 **Daftar Fitur Userbot:**
-
-🎵 **Musik & Download**
-• `.song <judul>` — Cari lagu di YouTube
-• `.music <judul>` — Cari musik dengan saran
-• `.dl <judul>` — Download lagu (alternatif)
-• `.get <judul>` — Cari & download lagu
-• `.yt <link>` — Download dari YouTube
-
-📸 **Gambar & Media**
-• `.p` — Kirim gambar tersimpan
-• `.p` (reply gambar) — Simpan/ubah gambar
-• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
-
-💬 **Pesan Tersimpan**
-• `.tw` — Kirim pesan tersimpan
-• `.tw` (reply pesan) — Simpan pesan .tw
-• `.c` — Kirim pesan tersimpan  
-• `.c` (reply pesan) — Simpan pesan .c
-• `.lagu` — Kirim lagu tersimpan
-• `.lagu` (reply lagu) — Simpan lagu
-• `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
-
-👥 **Manajemen Grup**
-• `.u <nama>` — Ubah nama grup langsung
-• `.sharegrup` (reply pesan) — Broadcast ke semua grup
-
-🔐 **Multi-Account**
-• `.genqr` — Generate QR code untuk tambah akun baru
-
-ℹ️ **Info & Status**
-• `.status` — Lihat status server
-• `.fitur` — Lihat semua fitur bot
-• `.debug` — Info debug untuk troubleshooting
-• `.checkadmin` — Cek status admin bot
-• `.clean` — Bersihkan semua data
-• `.info` — Info data tersimpan
-
-🔐 **Hanya untuk owner bot**
-"""
-    await event.reply(fitur_text)
-
-# =========================
-# BASIC TEST COMMANDS
-# =========================
-@client.on(events.NewMessage(pattern=r'\.ping'))
-async def ping_handler(event):
-    await event.reply('🏓 Pong!')
-
-@client.on(events.NewMessage(pattern=r'\.help'))
-async def help_handler(event):
-    help_text = """
-🤖 **Basic Commands:**
-• `.ping` - Test bot response
-• `.status` - Bot status
-• `.help` - This message
-• `.fitur` - All features
-• `.debug` - Debug info
-• `.checkadmin` - Check admin status
-• `.clean` - Clean all saved data
-• `.info` - Show saved data info
-
-🎵 **Music & Download:**
-• `.song <judul>` - Search songs on YouTube
-• `.music <judul>` - Search music with suggestions
-• `.dl <judul>` - Download song (alternatives)
-• `.get <judul>` - Search & download options
-• `.yt <link>` - Download from YouTube link
-
-🔐 **Multi-Account:**
-• `.genqr` - Generate QR code untuk tambah akun baru
-"""
-    await event.reply(help_text)
-
-# =========================
-# KEEP ALIVE & START BOT
-# =========================
-start_time = time.time()
-
-async def keep_alive():
-    while True:
-        try:
-            me = await client.get_me()
-            logger.info(f"💚 Bot is alive - {me.first_name}")
-            await asyncio.sleep(300)
-        except Exception as e:
-            logger.error(f"Keep alive error: {e}")
-            await asyncio.sleep(60)
-
-async def main():
-    logger.info("🤖 Starting main function...")
-    
-    try:
-        # Test connection first
-        logger.info("🔐 Testing connection...")
-        await client.start()
-        logger.info("✅ Connected to Telegram!")
-        
-        await init_owner()
-        
-        # Start keep alive
-        asyncio.create_task(keep_alive())
-        
-        logger.info("🎉 Bot is ready! Waiting for messages...")
-        
-        await client.run_until_disconnected()
-        
-    except Exception as e:
-        logger.error(f"❌ Fatal error in main: {e}")
-        sys.exit(1)
-
-if __name__ == '__main__':
-    try:
-        # Create event loop properly
-        if sys.platform == 'win32':
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-        
-    except KeyboardInterrupt:
-        logger.info("⏹️ Bot stopped by user")
-    except Exception as e:
-        logger.error(f"❌ Fatal error: {e}")
-    finally:
-        logger.info("🔴 Bot stopped")
+    print(f"\\n✅ LOGIN BERHASIL!")
+    print(f"👤 Name: {me.first_name}")
+    print(f"📞 Phone: {me.phone}")
+    print(f"🆔 ID: {me.id}")
+    print(f"\\n🔐 SESSION STRING:")
+    print("=" * 50)
+    print(session_string)
+    print("=" * 50)
+    print(f"\\n💡 Tambahkan sebagai SESSION_2 di Railway!")
