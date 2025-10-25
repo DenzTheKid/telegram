@@ -115,13 +115,12 @@ def owner_only(func):
     return wrapper
 
 # =========================
-# FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP (FIXED VERSION)
+# FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP (IMPROVED VERSION)
 # =========================
 @client.on(events.ChatAction)
 async def chat_action_handler(event):
     try:
-        # Debug log
-        logger.info(f"🔍 ChatAction event detected: {event.action_message}")
+        logger.info(f"🔍 ChatAction event detected: {event}")
         
         # Cek jika ada user yang ditambahkan
         if event.user_added:
@@ -130,13 +129,17 @@ async def chat_action_handler(event):
             
             # Cek jika bot yang ditambahkan
             if any(user.id == me.id for user in added_users):
-                added_by_user = await event.get_user()
-                chat = await event.get_chat()
+                try:
+                    added_by_user = await event.get_user()
+                    adder_name = f"{added_by_user.first_name or ''} {added_by_user.last_name or ''}".strip()
+                    adder_username = f"@{added_by_user.username}" if added_by_user.username else "Tidak ada username"
+                    adder_id = added_by_user.id
+                except:
+                    adder_name = "Unknown"
+                    adder_username = "Tidak diketahui"
+                    adder_id = "Unknown"
                 
-                # Informasi tentang yang menambahkan
-                adder_name = f"{added_by_user.first_name or ''} {added_by_user.last_name or ''}".strip()
-                adder_username = f"@{added_by_user.username}" if added_by_user.username else "Tidak ada username"
-                adder_id = added_by_user.id
+                chat = await event.get_chat()
                 
                 # Informasi tentang grup
                 chat_title = getattr(chat, 'title', 'Unknown Group')
@@ -252,6 +255,39 @@ async def monitor_new_groups(event):
         pass
 
 # =========================
+# FITUR TEST NOTIFIKASI: .testnotif
+# =========================
+@client.on(events.NewMessage(pattern=r"\.testnotif$"))
+@owner_only
+async def test_notification(event):
+    """Test notifikasi manual"""
+    try:
+        chat = await event.get_chat()
+        
+        test_msg = f"""
+🔔 **TEST NOTIFIKASI**
+
+Ini adalah test notifikasi untuk memastikan sistem notifikasi berfungsi.
+
+**Info Grup Saat Ini:**
+• **Nama**: {getattr(chat, 'title', 'N/A')}
+• **ID**: `{chat.id}`
+• **Waktu**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+✅ Jika pesan ini muncul di Saved Messages, berarti sistem notifikasi berfungsi.
+
+━━━━━━━━━━━━━━━━━━
+🤖 Bot by denz | @denzwel1
+"""
+        
+        # Kirim test notifikasi ke saved messages
+        await client.send_message('me', test_msg)
+        await event.reply("✅ Test notifikasi telah dikirim ke Saved Messages. Cek pesan tersimpan Anda!")
+        
+    except Exception as e:
+        await event.reply(f"❌ Error test notifikasi: {e}")
+
+# =========================
 # FITUR MANUAL CHECK: .checkgroups (FIXED VERSION)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.checkgroups$"))
@@ -318,6 +354,8 @@ async def server_status(event):
 📊 **Data tersimpan**: {len([v for v in data.values() if v])} items
 👤 **User**: {me.first_name}
 🆔 **User ID**: {me.id}
+
+🔔 **Notifikasi**: {'✅ AKTIF' if hasattr(client, '_chat_action_handler') else '❌ TIDAK AKTIF'}
 """
         await event.reply(status_text)
     except Exception as e:
@@ -1109,18 +1147,23 @@ async def fitur_list(event):
 • `.grpinfo` — Info grup saat ini
 • `.listgrp` — List semua grup yang diikuti
 • `.checkgroups` — Manual check semua grup
+• `.checkadmin` — Cek status admin bot
 
 🔔 **Monitoring**
 • **Auto-Notif** — Notifikasi otomatis ketika bot ditambahkan ke grup baru
 • **Deteksi Otomatis** — Sistem deteksi grup baru
+• `.testnotif` — Test notifikasi manual
 
 ℹ️ **Info & Status**
 • `.status` — Lihat status server
 • `.fitur` — Lihat semua fitur bot
 • `.debug` — Info debug untuk troubleshooting
-• `.checkadmin` — Cek status admin bot
 • `.clean` — Bersihkan semua data
 • `.info` — Info data tersimpan
+
+🔧 **Utility**
+• `.ping` — Test bot response
+• `.help` — Bantuan
 
 🔐 **Hanya untuk owner bot**
 
@@ -1162,6 +1205,8 @@ async def help_handler(event):
 • `.grpinfo` - Current group info
 • `.listgrp` - List all groups
 • `.checkgroups` - Manual check all groups
+• `.checkadmin` - Check admin rights
+• `.testnotif` - Test notification system
 • **Auto-Notification** - Get notified when bot is added to new groups
 """
     await event.reply(help_text)
@@ -1196,6 +1241,7 @@ async def main():
         asyncio.create_task(keep_alive())
         
         logger.info("🎉 Bot is ready! Waiting for messages...")
+        logger.info("🔔 Notifikasi sistem AKTIF - Bot akan kirim notifikasi ketika ditambahkan ke grup baru")
         
         await client.run_until_disconnected()
         
