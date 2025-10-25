@@ -6,34 +6,25 @@ import logging
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO,
-    stream=sys.stdout  # Force output to stdout
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
-# Test logging immediately
 logger.info("🚀 ===== BOT STARTING =====")
-print("🟢 PRINT: Bot starting...", flush=True)
 
 try:
-    # Test environment variables
-    API_ID = os.getenv('API_ID', '27037133')  # Default value dari kamu
-    API_HASH = os.getenv('API_HASH', '0698732c74d471bca5b7fbba076c52b7')  # Default value dari kamu
+    API_ID = int(os.getenv('API_ID', '27037133'))
+    API_HASH = os.getenv('API_HASH', '0698732c74d471bca5b7fbba076c52b7')
     SESSION_STRING = os.getenv('SESSION_STRING')
-    SESSION_NAME = os.getenv('SESSION_NAME', 'userbot')
     
     logger.info(f"🔧 API_ID: {API_ID}")
-    logger.info(f"🔧 API_HASH: {API_HASH}")
+    logger.info(f"🔧 API_HASH: {API_HASH[:10]}***")  # Hide full hash for security
     logger.info(f"🔧 SESSION_STRING: {'***' + SESSION_STRING[-10:] if SESSION_STRING else 'NOT SET'}")
-    logger.info(f"🔧 SESSION_NAME: {SESSION_NAME}")
     
-    if not SESSION_STRING and (not API_ID or not API_HASH):
-        logger.error("❌ MISSING ENVIRONMENT VARIABLES: Butuh SESSION_STRING atau API_ID & API_HASH")
+    if not SESSION_STRING:
+        logger.error("❌ SESSION_STRING environment variable is required!")
         sys.exit(1)
         
-    # Convert API_ID to integer
-    API_ID = int(API_ID)
-    logger.info("✅ Environment variables loaded successfully")
-    
 except Exception as e:
     logger.error(f"❌ INIT ERROR: {e}")
     sys.exit(1)
@@ -41,23 +32,28 @@ except Exception as e:
 # =========================
 # KODE USERBOT ASLI
 # =========================
-from telethon import TelegramClient, events, functions
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import ForwardMessagesRequest, EditChatTitleRequest
 from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, GetParticipantRequest
-from telethon.tl.types import Channel, InputChatUploadedPhoto, InputPhoto
-from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
+from telethon.tl.types import Channel, InputChatUploadedPhoto
 import json, asyncio, time
 
 logger.info("📦 Importing Telethon modules...")
 
-# Initialize client dengan session string atau session file
-if SESSION_STRING:
-    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+# Initialize client dengan session string
+try:
+    client = TelegramClient(
+        StringSession(SESSION_STRING), 
+        API_ID, 
+        API_HASH,
+        connection_retries=5,
+        timeout=30
+    )
     logger.info("✅ Telegram client initialized with SESSION STRING")
-else:
-    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-    logger.info("✅ Telegram client initialized with SESSION FILE")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize client: {e}")
+    sys.exit(1)
 
 DATA_FILE = "userbot_data.json"
 
@@ -65,12 +61,12 @@ DATA_FILE = "userbot_data.json"
 # DATABASE SEDERHANA
 # =========================
 def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
+    try:
+        if os.path.exists(DATA_FILE):
             with open(DATA_FILE, "r") as f:
                 return json.load(f)
-        except:
-            return {"p": None, "tw": None, "c": None, "lagu": None}
+    except:
+        pass
     return {"p": None, "tw": None, "c": None, "lagu": None}
 
 def save_data(data):
@@ -97,7 +93,7 @@ async def init_owner():
                                           f"• **Time**: {time.ctime()}\n"
                                           f"• **User**: {me.first_name}\n"
                                           f"• **ID**: {me.id}\n"
-                                          f"• **Mode**: {'SESSION STRING' if SESSION_STRING else 'SESSION FILE'}")
+                                          f"• **Mode**: SESSION STRING")
             logger.info("✅ Startup message sent to saved messages")
         except Exception as msg_error:
             logger.warning(f"⚠️ Could not send startup message: {msg_error}")
@@ -130,13 +126,12 @@ async def server_status(event):
 • **Platform**: Railway
 • **Python**: {sys.version.split()[0]}
 • **Uptime**: {time.time() - start_time:.0f} detik
-• **Mode**: {'SESSION STRING' if SESSION_STRING else 'SESSION FILE'}
+• **Mode**: SESSION STRING
 
 ✅ **Bot is running on Railway**
 📊 **Data tersimpan**: {len([v for v in data.values() if v])} items
 👤 **User**: {me.first_name}
 🆔 **User ID**: {me.id}
-💾 **Session**: {SESSION_NAME}
 """
         await event.reply(status_text)
     except Exception as e:
@@ -419,6 +414,24 @@ async def ganti_profil_grup(event):
         await event.reply(f"⚠️ Gagal mengganti profil grup\nError: {e}")
 
 # =========================
+# BASIC TEST COMMANDS
+# =========================
+@client.on(events.NewMessage(pattern=r'\.ping'))
+async def ping_handler(event):
+    await event.reply('🏓 Pong!')
+
+@client.on(events.NewMessage(pattern=r'\.help'))
+async def help_handler(event):
+    help_text = """
+🤖 **Basic Commands:**
+• `.ping` - Test bot response
+• `.status` - Bot status
+• `.help` - This message
+• `.fitur` - All features
+"""
+    await event.reply(help_text)
+
+# =========================
 # KEEP ALIVE & START BOT
 # =========================
 start_time = time.time()
@@ -428,52 +441,42 @@ async def keep_alive():
         try:
             me = await client.get_me()
             logger.info(f"💚 Bot is alive - {me.first_name}")
-            await asyncio.sleep(300)  # Check every 5 minutes
+            await asyncio.sleep(300)
         except Exception as e:
             logger.error(f"Keep alive error: {e}")
             await asyncio.sleep(60)
 
 async def main():
-    logger.info("🤖 Initializing Telegram client...")
-    
-    # Buat folder downloads jika tidak ada
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
+    logger.info("🤖 Starting main function...")
     
     try:
+        # Test connection first
+        logger.info("🔐 Testing connection...")
         await client.start()
-        logger.info("✅ Telegram client started successfully")
+        logger.info("✅ Connected to Telegram!")
         
         await init_owner()
         
-        # Start keep alive task
+        # Start keep alive
         asyncio.create_task(keep_alive())
         
-        logger.info("🎉 Userbot started successfully on Railway!")
-        logger.info("💚 Bot will stay online 24/7")
-        logger.info("📡 Waiting for messages...")
+        logger.info("🎉 Bot is ready! Waiting for messages...")
         
         await client.run_until_disconnected()
         
     except Exception as e:
-        logger.error(f"❌ Failed to start bot: {e}")
+        logger.error(f"❌ Fatal error in main: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':
-    logger.info("🚀 Starting main function...")
-    
-    # Handle asyncio event loop untuk environment yang berbeda
     try:
-        if hasattr(asyncio, 'get_running_loop'):
-            loop = asyncio.get_running_loop()
-        else:
-            loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    try:
+        # Create event loop properly
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        
+        loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
+        
     except KeyboardInterrupt:
         logger.info("⏹️ Bot stopped by user")
     except Exception as e:
