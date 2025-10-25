@@ -16,10 +16,12 @@ try:
     API_ID = int(os.getenv('API_ID', '27037133'))
     API_HASH = os.getenv('API_HASH', '0698732c74d471bca5b7fbba076c52b7')
     SESSION_STRING = os.getenv('SESSION_STRING')
+    SESSION_2 = os.getenv('SESSION_2')  # Akun kedua
     
     logger.info(f"🔧 API_ID: {API_ID}")
     logger.info(f"🔧 API_HASH: {API_HASH[:10]}***")  # Hide full hash for security
     logger.info(f"🔧 SESSION_STRING: {'***' + SESSION_STRING[-10:] if SESSION_STRING else 'NOT SET'}")
+    logger.info(f"🔧 SESSION_2: {'***' + SESSION_2[-10:] if SESSION_2 else 'NOT SET'}")
     
     if not SESSION_STRING:
         logger.error("❌ SESSION_STRING environment variable is required!")
@@ -55,6 +57,21 @@ except Exception as e:
     logger.error(f"❌ Failed to initialize client: {e}")
     sys.exit(1)
 
+# Initialize client kedua jika ada
+client2 = None
+if SESSION_2:
+    try:
+        client2 = TelegramClient(
+            StringSession(SESSION_2), 
+            API_ID, 
+            API_HASH,
+            connection_retries=5,
+            timeout=30
+        )
+        logger.info("✅ Telegram client 2 initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize client 2: {e}")
+
 DATA_FILE = "userbot_data.json"
 
 # =========================
@@ -77,44 +94,153 @@ def save_data(data):
         logger.error(f"Error saving data: {e}")
 
 data = load_data()
-OWNER_ID = None
+OWNER_IDS = set()  # Gunakan set untuk multiple owners
 
-async def init_owner():
-    global OWNER_ID
+async def init_owners():
+    global OWNER_IDS
     try:
+        # Initialize owner utama
         me = await client.get_me()
-        OWNER_ID = me.id
-        logger.info(f"✅ Bot started for user: {me.first_name} (ID: {me.id})")
+        OWNER_IDS.add(me.id)
+        logger.info(f"✅ Main owner: {me.first_name} (ID: {me.id})")
         
-        # Kirim pesan start ke saved messages
+        # Initialize owner kedua jika ada
+        if client2:
+            try:
+                me2 = await client2.get_me()
+                OWNER_IDS.add(me2.id)
+                logger.info(f"✅ Second owner: {me2.first_name} (ID: {me2.id})")
+                
+                # Kirim pesan start dari akun kedua juga
+                try:
+                    await client2.send_message('me', f"🤖 **Bot Started Successfully!**\n\n"
+                                                  f"• **Platform**: Railway\n"
+                                                  f"• **Time**: {time.ctime()}\n"
+                                                  f"• **User**: {me2.first_name}\n"
+                                                  f"• **ID**: {me2.id}\n"
+                                                  f"• **Mode**: MULTI-ACCOUNT\n"
+                                                  f"• **Status**: AKUN KEDUA")
+                except Exception as msg_error2:
+                    logger.warning(f"⚠️ Could not send startup message to account 2: {msg_error2}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize second owner: {e}")
+        
+        # Kirim pesan start ke saved messages akun utama
         try:
             await client.send_message('me', f"🤖 **Bot Started Successfully!**\n\n"
                                           f"• **Platform**: Railway\n"
                                           f"• **Time**: {time.ctime()}\n"
                                           f"• **User**: {me.first_name}\n"
                                           f"• **ID**: {me.id}\n"
-                                          f"• **Mode**: SESSION STRING")
+                                          f"• **Mode**: MULTI-ACCOUNT\n"
+                                          f"• **Total Owners**: {len(OWNER_IDS)}")
             logger.info("✅ Startup message sent to saved messages")
         except Exception as msg_error:
             logger.warning(f"⚠️ Could not send startup message: {msg_error}")
             
     except Exception as e:
-        logger.error(f"❌ Failed to initialize owner: {e}")
+        logger.error(f"❌ Failed to initialize owners: {e}")
         raise
 
 def owner_only(func):
     async def wrapper(event):
-        if OWNER_ID is None:
-            await event.reply("⚠️ Owner ID belum diinisialisasi.")
+        if not OWNER_IDS:
+            await event.reply("⚠️ Owner IDs belum diinisialisasi.")
             return
-        if event.sender_id != OWNER_ID:
+        if event.sender_id not in OWNER_IDS:
             await event.reply("❌ Kamu tidak memiliki izin untuk menggunakan perintah ini.")
             return
         return await func(event)
     return wrapper
 
 # =========================
-# FITUR: STATUS SERVER
+# FITUR MULTI-ACCOUNT
+# =========================
+@client.on(events.NewMessage(pattern=r'\.myacc'))
+@owner_only
+async def my_accounts(event):
+    """Lihat semua akun yang terhubung"""
+    try:
+        accounts_text = "👥 **AKUN YANG TERHUBUNG:**\n\n"
+        
+        # Akun utama
+        me1 = await client.get_me()
+        status1 = "✅ Online" if client.is_connected() else "❌ Offline"
+        accounts_text += f"• **AKUN UTAMA** - {status1}\n"
+        accounts_text += f"  👤 {me1.first_name}\n"
+        accounts_text += f"  📞 {me1.phone}\n"
+        accounts_text += f"  🆔 {me1.id}\n\n"
+        
+        # Akun kedua
+        if client2 and client2.is_connected():
+            try:
+                me2 = await client2.get_me()
+                status2 = "✅ Online" if client2.is_connected() else "❌ Offline"
+                accounts_text += f"• **AKUN KEDUA** - {status2}\n"
+                accounts_text += f"  👤 {me2.first_name}\n"
+                accounts_text += f"  📞 {me2.phone}\n"
+                accounts_text += f"  🆔 {me2.id}\n\n"
+            except Exception as e:
+                accounts_text += f"• **AKUN KEDUA** - ❌ Error: {e}\n\n"
+        else:
+            accounts_text += "• **AKUN KEDUA** - ❌ Tidak terhubung\n\n"
+        
+        accounts_text += f"📊 **Total akun aktif**: {len(OWNER_IDS)}"
+        
+        await event.reply(accounts_text)
+    except Exception as e:
+        await event.reply(f"❌ Error: {e}")
+
+@client.on(events.NewMessage(pattern=r'\.broadcast2 (.+)'))
+@owner_only
+async def broadcast_to_second_account(event):
+    """Broadcast pesan dari akun kedua"""
+    if not client2 or not client2.is_connected():
+        await event.reply("❌ Akun kedua tidak terhubung!")
+        return
+        
+    message = event.pattern_match.group(1).strip()
+    if not message:
+        await event.reply("❌ Masukkan pesan yang ingin di-broadcast!")
+        return
+        
+    sent_count = 0
+    error_count = 0
+    processing_msg = await event.reply("🔄 Memproses broadcast dari akun kedua...")
+    
+    try:
+        async for dialog in client2.iter_dialogs():
+            if dialog.is_group:
+                try:
+                    await client2.send_message(dialog.id, message)
+                    sent_count += 1
+                    await asyncio.sleep(2)  # Delay untuk hindari spam
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"Akun 2 gagal kirim ke {dialog.name}: {e}")
+        
+        await processing_msg.edit(f"📢 **Broadcast dari Akun 2 Complete!**\n✅ Berhasil: {sent_count} grup\n❌ Gagal: {error_count} grup")
+    except Exception as e:
+        await processing_msg.edit(f"❌ Error broadcast: {e}")
+
+@client.on(events.NewMessage(pattern=r'\.switch'))
+@owner_only
+async def switch_account(event):
+    """Switch antara akun utama dan akun kedua untuk command selanjutnya"""
+    try:
+        # Ini contoh implementasi switch account
+        # Dalam praktiknya, perlu menyimpan state akun mana yang aktif
+        await event.reply("🔄 **Fitur Switch Account**\n\n"
+                         "Gunakan command:\n"
+                         "• `.myacc` - Lihat semua akun\n"
+                         "• `.broadcast2 <pesan>` - Broadcast dari akun 2\n"
+                         "• Semua command lain akan jalan dari akun yang mengirim")
+    except Exception as e:
+        await event.reply(f"❌ Error: {e}")
+
+# =========================
+# FITUR: STATUS SERVER (UPDATED)
 # =========================
 @client.on(events.NewMessage(pattern=r'\.status'))
 @owner_only
@@ -126,12 +252,13 @@ async def server_status(event):
 • **Platform**: Railway
 • **Python**: {sys.version.split()[0]}
 • **Uptime**: {time.time() - start_time:.0f} detik
-• **Mode**: SESSION STRING
+• **Mode**: MULTI-ACCOUNT
 
 ✅ **Bot is running on Railway**
 📊 **Data tersimpan**: {len([v for v in data.values() if v])} items
 👤 **User**: {me.first_name}
 🆔 **User ID**: {me.id}
+👥 **Total Akun**: {len(OWNER_IDS)}
 """
         await event.reply(status_text)
     except Exception as e:
@@ -179,12 +306,20 @@ async def simpan_gambar(event):
 async def ubah_nama_grup(event):
     new_name = event.pattern_match.group(1).strip()
     try:
-        entity = await client.get_entity(event.chat_id)
-        if isinstance(entity, Channel):
-            await client(EditTitleRequest(channel=entity, title=new_name))
-        else:
-            await client(EditChatTitleRequest(chat_id=entity.id, title=new_name))
-        await event.reply(f"✅ Nama grup berhasil diganti menjadi **{new_name}**")
+        # Tentukan client mana yang akan digunakan berdasarkan siapa yang kirim command
+        if event.sender_id in OWNER_IDS:
+            # Gunakan client yang sesuai dengan pengirim
+            if client2 and event.sender_id == (await client2.get_me()).id:
+                current_client = client2
+            else:
+                current_client = client
+                
+            entity = await current_client.get_entity(event.chat_id)
+            if isinstance(entity, Channel):
+                await current_client(EditTitleRequest(channel=entity, title=new_name))
+            else:
+                await current_client(EditChatTitleRequest(chat_id=entity.id, title=new_name))
+            await event.reply(f"✅ Nama grup berhasil diganti menjadi **{new_name}**")
     except Exception as e:
         error_msg = str(e)
         if "wait" in error_msg.lower():
@@ -798,7 +933,7 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .fitur
+# FITUR: .fitur (UPDATED)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
 async def fitur_list(event):
@@ -829,6 +964,11 @@ async def fitur_list(event):
 👥 **Manajemen Grup**
 • `.u <nama>` — Ubah nama grup langsung
 • `.sharegrup` (reply pesan) — Broadcast ke semua grup
+
+👥 **Multi-Account**
+• `.myacc` — Lihat semua akun yang terhubung
+• `.broadcast2 <pesan>` — Broadcast dari akun kedua
+• `.switch` — Info switch account
 
 ℹ️ **Info & Status**
 • `.status` — Lihat status server
@@ -868,11 +1008,16 @@ async def help_handler(event):
 • `.dl <judul>` - Download song (alternatives)
 • `.get <judul>` - Search & download options
 • `.yt <link>` - Download from YouTube link
+
+👥 **Multi-Account:**
+• `.myacc` - Lihat semua akun
+• `.broadcast2 <pesan>` - Broadcast dari akun kedua
+• `.switch` - Info switch account
 """
     await event.reply(help_text)
 
 # =========================
-# KEEP ALIVE & START BOT
+# KEEP ALIVE & START BOT (UPDATED)
 # =========================
 start_time = time.time()
 
@@ -880,7 +1025,15 @@ async def keep_alive():
     while True:
         try:
             me = await client.get_me()
-            logger.info(f"💚 Bot is alive - {me.first_name}")
+            logger.info(f"💚 Client 1 alive - {me.first_name}")
+            
+            if client2 and client2.is_connected():
+                try:
+                    me2 = await client2.get_me()
+                    logger.info(f"💚 Client 2 alive - {me2.first_name}")
+                except Exception as e2:
+                    logger.error(f"❌ Client 2 keep alive error: {e2}")
+            
             await asyncio.sleep(300)
         except Exception as e:
             logger.error(f"Keep alive error: {e}")
@@ -890,19 +1043,43 @@ async def main():
     logger.info("🤖 Starting main function...")
     
     try:
-        # Test connection first
-        logger.info("🔐 Testing connection...")
+        # Test connection first - Client utama
+        logger.info("🔐 Testing connection Client 1...")
         await client.start()
-        logger.info("✅ Connected to Telegram!")
+        logger.info("✅ Client 1 connected to Telegram!")
         
-        await init_owner()
+        # Start client kedua jika ada
+        if client2:
+            try:
+                logger.info("🔐 Testing connection Client 2...")
+                await client2.start()
+                me2 = await client2.get_me()
+                logger.info(f"✅ Client 2 connected: {me2.first_name} (ID: {me2.id})")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to connect client 2: {e}")
+                logger.error("⚠️ Pastikan SESSION_2 valid dan tidak expired")
+                client2 = None  # Set ke None jika gagal
+        
+        await init_owners()
         
         # Start keep alive
         asyncio.create_task(keep_alive())
         
         logger.info("🎉 Bot is ready! Waiting for messages...")
+        logger.info(f"📊 Total accounts: {len(OWNER_IDS)}")
         
-        await client.run_until_disconnected()
+        # Run both clients jika client2 terhubung
+        if client2 and client2.is_connected():
+            logger.info("🔄 Running both clients simultaneously...")
+            await asyncio.gather(
+                client.run_until_disconnected(),
+                client2.run_until_disconnected(),
+                return_exceptions=True
+            )
+        else:
+            logger.info("🔄 Running only client 1...")
+            await client.run_until_disconnected()
         
     except Exception as e:
         logger.error(f"❌ Fatal error in main: {e}")
