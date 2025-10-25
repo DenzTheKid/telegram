@@ -59,15 +59,15 @@ try:
     # Test environment variables
     API_ID = os.getenv('API_ID')
     API_HASH = os.getenv('API_HASH')
-    SESSION_NAME = os.getenv('SESSION_NAME', 'userbot')
-    SESSION_STRING = os.getenv('SESSION_STRING')  # Untuk string session
+    SESSION_STRING = os.getenv('SESSION_STRING')  # Wajib menggunakan string session
     
     logger.info(f"🔧 API_ID: {API_ID}")
     logger.info(f"🔧 API_HASH: {API_HASH}")
-    logger.info(f"🔧 SESSION_NAME: {SESSION_NAME}")
+    logger.info(f"🔧 SESSION_STRING: {'***' + SESSION_STRING[-10:] if SESSION_STRING else 'NOT SET'}")
     
-    if not API_ID or not API_HASH:
+    if not API_ID or not API_HASH or not SESSION_STRING:
         logger.error("❌ MISSING ENVIRONMENT VARIABLES")
+        logger.error("💡 Pastikan API_ID, API_HASH, dan SESSION_STRING sudah diset")
         sys.exit(1)
         
     # Convert API_ID to integer
@@ -95,13 +95,9 @@ except ImportError as e:
     logger.error(f"❌ Failed to import Telethon modules: {e}")
     sys.exit(1)
 
-# Initialize client dengan string session jika ada
-if SESSION_STRING:
-    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-    logger.info("✅ Using string session")
-else:
-    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-    logger.info("✅ Using file session")
+# Initialize client dengan string session (WAJIB)
+client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+logger.info("✅ Telegram client initialized with string session")
 
 DATA_FILE = "userbot_data.json"
 
@@ -495,25 +491,13 @@ async def main():
         os.makedirs('downloads')
     
     try:
-        # Start client - handle both string session dan file session
-        if SESSION_STRING:
-            await client.start()
-            logger.info("✅ Client started with string session")
-        else:
-            # Untuk file session, coba start tanpa input
-            await client.start()
-            logger.info("✅ Client started with file session")
+        # Start client dengan string session (TANPA input interaktif)
+        await client.start()
         
-        # Cek jika user sudah authorized
+        # Validasi session
         if not await client.is_user_authorized():
-            logger.error("❌ Client not authorized. Please generate string session locally first.")
-            
-            # Jika menggunakan string session tapi tidak authorized
-            if SESSION_STRING:
-                logger.error("❌ String session invalid or expired.")
-            else:
-                logger.error("❌ File session not found or expired.")
-            
+            logger.error("❌ String session invalid or expired")
+            logger.error("💡 Please generate new session string using generate_session.py")
             sys.exit(1)
         
         await init_owner()
@@ -534,10 +518,6 @@ async def main():
 
 if __name__ == '__main__':
     logger.info("🚀 Starting main function...")
-    
-    # Pastikan menggunakan event loop yang benar
-    if os.name == 'nt':  # Windows
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     
     try:
         client.loop.run_until_complete(main())
