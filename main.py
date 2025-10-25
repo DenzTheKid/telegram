@@ -874,4 +874,52 @@ async def help_handler(event):
 # =========================
 # KEEP ALIVE & START BOT
 # =========================
-start
+start_time = time.time()
+
+async def keep_alive():
+    while True:
+        try:
+            me = await client.get_me()
+            logger.info(f"💚 Bot is alive - {me.first_name}")
+            await asyncio.sleep(300)
+        except Exception as e:
+            logger.error(f"Keep alive error: {e}")
+            await asyncio.sleep(60)
+
+async def main():
+    logger.info("🤖 Starting main function...")
+    
+    try:
+        # Test connection first
+        logger.info("🔐 Testing connection...")
+        await client.start()
+        logger.info("✅ Connected to Telegram!")
+        
+        await init_owner()
+        
+        # Start keep alive
+        asyncio.create_task(keep_alive())
+        
+        logger.info("🎉 Bot is ready! Waiting for messages...")
+        
+        await client.run_until_disconnected()
+        
+    except Exception as e:
+        logger.error(f"❌ Fatal error in main: {e}")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    try:
+        # Create event loop properly
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+        
+    except KeyboardInterrupt:
+        logger.info("⏹️ Bot stopped by user")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
+    finally:
+        logger.info("🔴 Bot stopped")
