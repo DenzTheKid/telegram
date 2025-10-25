@@ -343,6 +343,7 @@ async def fitur_list(event):
 • `.status` — Lihat status server
 • `.fitur` — Lihat semua fitur bot
 • `.debug` — Info debug untuk troubleshooting
+• `.checkadmin` — Cek status admin bot
 
 🔐 **Hanya untuk owner bot**
 """
@@ -371,7 +372,7 @@ async def kirim_tersimpan(event):
         await event.reply(f"⚠️ Gagal mengirim pesan .{key}\nError: {e}")
 
 # =========================
-# FITUR BARU: .ppgb - VERSI DIPERBAIKI
+# FITUR BARU: .ppgb - VERSI LENGKAP UNTUK GRUP BIASA
 # =========================
 @client.on(events.NewMessage(pattern=r"\.ppgb$"))
 @owner_only
@@ -391,58 +392,144 @@ async def ganti_profil_grup(event):
             await processing_msg.edit("❌ File gambar tidak ditemukan! Simpan ulang gambar dengan `.p`")
             return
 
-        # Cek apakah ini channel/supergroup atau grup biasa
-        if isinstance(entity, Channel):
-            # Untuk supergroup/channel
+        # METHOD 1: Untuk semua jenis grup
+        try:
+            # Upload file
+            uploaded_file = await client.upload_file(file_path)
+            
+            # Coba method EditChatPhoto untuk grup biasa
+            from telethon.tl.functions.messages import EditChatPhotoRequest
+            from telethon.tl.types import InputChatUploadedPhoto
+            
+            await client(EditChatPhotoRequest(
+                chat_id=entity.id,
+                photo=InputChatUploadedPhoto(
+                    file=uploaded_file,
+                    video=None,
+                    video_start_ts=None
+                )
+            ))
+            await processing_msg.edit("✅ Foto profil grup berhasil diganti! (Method 1)")
+            return
+            
+        except Exception as e1:
+            logger.warning(f"Method 1 failed: {e1}")
+            
+            # METHOD 2: Untuk supergroup/channel
             try:
-                # Cek admin rights
-                try:
-                    participant = await client(GetParticipantRequest(
-                        channel=entity,
-                        participant='me'
-                    ))
-                    admin_rights = getattr(participant.participant, 'admin_rights', None)
-                    if not admin_rights or not getattr(admin_rights, 'change_info', False):
+                if isinstance(entity, Channel):
+                    # Cek admin rights
+                    try:
+                        participant = await client(GetParticipantRequest(
+                            channel=entity,
+                            participant='me'
+                        ))
+                        admin_rights = getattr(participant.participant, 'admin_rights', None)
+                        if not admin_rights or not getattr(admin_rights, 'change_info', False):
+                            await processing_msg.edit("⚠️ Bot harus menjadi admin dengan hak **ubah info** untuk mengganti foto grup")
+                            return
+                    except Exception as admin_error:
                         await processing_msg.edit("⚠️ Bot harus menjadi admin dengan hak **ubah info** untuk mengganti foto grup")
                         return
-                except Exception as admin_error:
-                    await processing_msg.edit("⚠️ Bot harus menjadi admin dengan hak **ubah info** untuk mengganti foto grup")
-                    return
 
-                # Upload dan ganti foto
-                file = await client.upload_file(file_path)
-                await client(EditPhotoRequest(
-                    channel=entity,
-                    photo=InputChatUploadedPhoto(file=file)
-                ))
-                await processing_msg.edit("✅ Foto profil grup berhasil diganti!")
-                
-            except Exception as e:
-                error_msg = str(e).lower()
-                if "admin" in error_msg or "rights" in error_msg:
-                    await processing_msg.edit("⚠️ Bot harus menjadi admin dengan hak **ubah info grup** untuk mengganti foto profil.")
-                elif "wait" in error_msg or "timeout" in error_msg:
-                    await processing_msg.edit("⏰ Timeout! Coba lagi beberapa saat.")
+                    # Upload dan ganti foto
+                    file = await client.upload_file(file_path)
+                    await client(EditPhotoRequest(
+                        channel=entity,
+                        photo=InputChatUploadedPhoto(file=file)
+                    ))
+                    await processing_msg.edit("✅ Foto profil grup berhasil diganti! (Method 2)")
+                    return
                 else:
-                    await processing_msg.edit(f"❌ Gagal mengganti foto: {str(e)}")
+                    raise Exception("Not a channel")
                     
-        else:
-            # Untuk grup biasa - lebih sulit, jadi kita gunakan workaround
-            try:
-                # Kirim foto dan pin sebagai alternatif
-                sent_msg = await client.send_file(
-                    entity,
-                    file_path,
-                    caption="📸 **Foto Profil Grup**\n\n⚠️ Untuk grup biasa, fitur ganti foto otomatis terbatas. Foto ini bisa dijadikan referensi untuk diganti manual oleh admin."
-                )
-                await client.pin_message(entity, sent_msg)
-                await processing_msg.edit("✅ Foto telah dikirim dan dipin!\n\n📝 **Note:** Untuk grup biasa, ganti foto profil harus dilakukan manual oleh admin melalui menu info grup.")
+            except Exception as e2:
+                logger.warning(f"Method 2 failed: {e2}")
                 
-            except Exception as e:
-                await processing_msg.edit(f"❌ Gagal: {str(e)}")
+                # METHOD 3: Cara manual fallback
+                try:
+                    sent_msg = await client.send_file(
+                        entity,
+                        file_path,
+                        caption="📸 **Foto untuk profil grup**\n\nAdmin silakan gunakan foto ini untuk mengganti foto profil grup secara manual."
+                    )
+                    await client.pin_message(entity, sent_msg)
+                    await processing_msg.edit(
+                        "📝 **Foto telah dikirim dan dipin!**\n\n"
+                        "Admin silakan:\n"
+                        "1. Download foto ini\n"
+                        "2. Pergi ke **Info Grup**\n"
+                        "3. Pilih **Edit** → **Ganti Foto Grup**\n"
+                        "4. Pilih foto yang sudah didownload\n\n"
+                        "⚠️ **Note:** Untuk grup biasa, bot memerlukan hak admin lengkap untuk mengganti foto otomatis."
+                    )
+                    
+                except Exception as e3:
+                    await processing_msg.edit(f"❌ Semua method gagal:\n• Method 1: {e1}\n• Method 2: {e2}\n• Method 3: {e3}")
 
     except Exception as e:
         await event.reply(f"❌ Error sistem: {str(e)}")
+
+# =========================
+# FITUR CHECK: .checkadmin
+# =========================
+@client.on(events.NewMessage(pattern=r"\.checkadmin$"))
+@owner_only
+async def check_admin_rights(event):
+    try:
+        entity = await client.get_entity(event.chat_id)
+        me = await client.get_me()
+        
+        check_msg = await event.reply("🔍 Checking admin permissions...")
+        
+        info_text = f"""
+👥 **Group Info:**
+• **Type**: {'Channel' if isinstance(entity, Channel) else 'Group'}
+• **Title**: {getattr(entity, 'title', 'N/A')}
+• **ID**: {entity.id}
+
+🤖 **Bot Info:**
+• **Name**: {me.first_name}
+• **ID**: {me.id}
+"""
+
+        # Check if bot is admin
+        try:
+            if isinstance(entity, Channel):
+                participant = await client(GetParticipantRequest(
+                    channel=entity,
+                    participant='me'
+                ))
+                admin_rights = getattr(participant.participant, 'admin_rights', None)
+                
+                if admin_rights:
+                    rights_info = f"""
+✅ **Bot is ADMIN with rights:**
+• Change Info: {getattr(admin_rights, 'change_info', False)}
+• Post Messages: {getattr(admin_rights, 'post_messages', False)}
+• Edit Messages: {getattr(admin_rights, 'edit_messages', False)}
+• Delete Messages: {getattr(admin_rights, 'delete_messages', False)}
+• Ban Users: {getattr(admin_rights, 'ban_users', False)}
+• Invite Users: {getattr(admin_rights, 'invite_users', False)}
+• Pin Messages: {getattr(admin_rights, 'pin_messages', False)}
+"""
+                    await check_msg.edit(info_text + rights_info)
+                else:
+                    await check_msg.edit(info_text + "\n❌ **Bot is NOT admin**")
+            else:
+                # Untuk grup biasa, cek dengan cara lain
+                try:
+                    # Coba akses admin functionality
+                    await client.get_permissions(entity, me)
+                    await check_msg.edit(info_text + "\n✅ **Bot has admin access (Basic Group)**")
+                except:
+                    await check_msg.edit(info_text + "\n❌ **Bot is NOT admin or limited access**")
+                    
+        except Exception as admin_error:
+            await check_msg.edit(info_text + f"\n❌ **Admin check failed**: {admin_error}")
+            
+    except Exception as e:
+        await event.reply(f"❌ Check error: {e}")
 
 # =========================
 # FITUR DEBUG: .debug
@@ -495,6 +582,40 @@ async def debug_info(event):
         await event.reply(f"❌ Debug error: {e}")
 
 # =========================
+# FITUR CLEAN: .clean
+# =========================
+@client.on(events.NewMessage(pattern=r"\.clean$"))
+@owner_only
+async def clean_data(event):
+    try:
+        global data
+        data = {"p": None, "tw": None, "c": None, "lagu": None}
+        save_data(data)
+        await event.reply("🧹 **Data berhasil dibersihkan!**\n\nSemua data tersimpan telah direset.")
+    except Exception as e:
+        await event.reply(f"❌ Gagal membersihkan data: {e}")
+
+# =========================
+# FITUR INFO: .info
+# =========================
+@client.on(events.NewMessage(pattern=r"\.info$"))
+@owner_only
+async def info_data(event):
+    try:
+        info_text = """
+💾 **Data Tersimpan:**
+
+"""
+        for key, value in data.items():
+            status = "✅ Tersimpan" if value else "❌ Kosong"
+            info_text += f"• **.{key}**: {status}\n"
+        
+        info_text += f"\n📁 **Total file**: {len([v for v in data.values() if v])}/4"
+        await event.reply(info_text)
+    except Exception as e:
+        await event.reply(f"❌ Gagal menampilkan info: {e}")
+
+# =========================
 # BASIC TEST COMMANDS
 # =========================
 @client.on(events.NewMessage(pattern=r'\.ping'))
@@ -510,6 +631,9 @@ async def help_handler(event):
 • `.help` - This message
 • `.fitur` - All features
 • `.debug` - Debug info
+• `.checkadmin` - Check admin status
+• `.clean` - Clean all saved data
+• `.info` - Show saved data info
 """
     await event.reply(help_text)
 
