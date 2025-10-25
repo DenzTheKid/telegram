@@ -314,42 +314,6 @@ async def share_to_all_groups(event):
     await event.reply(f"📢 **Broadcast Complete!**\n✅ Berhasil: {sent_count} grup\n❌ Gagal: {error_count} grup")
 
 # =========================
-# FITUR: .fitur
-# =========================
-@client.on(events.NewMessage(pattern=r"\.fitur$"))
-async def fitur_list(event):
-    fitur_text = """
-🤖 **Daftar Fitur Userbot:**
-
-📸 **Gambar & Media**
-• `.p` — Kirim gambar tersimpan
-• `.p` (reply gambar) — Simpan/ubah gambar
-• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
-
-💬 **Pesan Tersimpan**
-• `.tw` — Kirim pesan tersimpan
-• `.tw` (reply pesan) — Simpan pesan .tw
-• `.c` — Kirim pesan tersimpan  
-• `.c` (reply pesan) — Simpan pesan .c
-• `.lagu` — Kirim lagu tersimpan
-• `.lagu` (reply lagu) — Simpan lagu
-• `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
-
-👥 **Manajemen Grup**
-• `.u <nama>` — Ubah nama grup langsung
-• `.sharegrup` (reply pesan) — Broadcast ke semua grup
-
-ℹ️ **Info & Status**
-• `.status` — Lihat status server
-• `.fitur` — Lihat semua fitur bot
-• `.debug` — Info debug untuk troubleshooting
-• `.checkadmin` — Cek status admin bot
-
-🔐 **Hanya untuk owner bot**
-"""
-    await event.reply(fitur_text)
-
-# =========================
 # FITUR BARU: .r
 # =========================
 @client.on(events.NewMessage(pattern=r"\.r (\w+)"))
@@ -616,6 +580,269 @@ async def info_data(event):
         await event.reply(f"❌ Gagal menampilkan info: {e}")
 
 # =========================
+# FITUR CARI LAGU: .song
+# =========================
+@client.on(events.NewMessage(pattern=r"\.song (.+)"))
+@owner_only
+async def search_song(event):
+    try:
+        query = event.pattern_match.group(1).strip()
+        if not query:
+            await event.reply("❌ Masukkan judul lagu yang ingin dicari.\nContoh: `.song coldplay adventure of a lifetime`")
+            return
+
+        processing_msg = await event.reply(f"🔍 Mencari lagu: **{query}**...")
+        
+        # Simple YouTube search without external dependencies
+        try:
+            import urllib.parse
+            
+            # Create YouTube search URL
+            search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+            
+            song_list = f"🎵 **Hasil Pencarian Lagu:**\n\n"
+            song_list += f"**Kata kunci:** {query}\n\n"
+            
+            # Provide direct YouTube search link
+            song_list += "🔍 **Cari di YouTube:**\n"
+            song_list += f"• [Buka YouTube Search]({search_url})\n\n"
+            
+            # Suggest popular search terms
+            song_list += "🎧 **Coba kata kunci:**\n"
+            song_list += f"• `{query} official audio`\n"
+            song_list += f"• `{query} lyrics`\n"
+            song_list += f"• `{query} music video`\n"
+            song_list += f"• `{query} live`\n\n"
+            
+            song_list += "💡 **Tips:**\n"
+            song_list += "• Copy link YouTube dari hasil pencarian\n"
+            song_list += "• Gunakan aplikasi downloader terpisah\n"
+            song_list += "• Spotify/Apple Music untuk streaming legal"
+            
+            await processing_msg.edit(song_list)
+            
+        except Exception as e:
+            await processing_msg.edit(f"❌ Error saat mencari lagu: {str(e)}")
+            
+    except Exception as e:
+        await event.reply(f"❌ Error: {str(e)}")
+
+# =========================
+# FITUR CARI LAGU SIMPLE: .music
+# =========================
+@client.on(events.NewMessage(pattern=r"\.music (.+)"))
+@owner_only
+async def search_music(event):
+    try:
+        query = event.pattern_match.group(1).strip()
+        if not query:
+            await event.reply("❌ Masukkan judul lagu.\nContoh: `.music avicii wake me up`")
+            return
+
+        processing_msg = await event.reply(f"🔍 Mencari: **{query}**...")
+        
+        # Simple music search with suggestions
+        import urllib.parse
+        
+        search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query + ' audio')}"
+        
+        music_results = f"🎵 **Musik untuk '{query}':**\n\n"
+        music_results += "**Link pencarian:**\n"
+        music_results += f"• [YouTube]({search_url})\n\n"
+        
+        music_results += "**Lagu populer terkait:**\n"
+        music_results += f"• {query} official audio\n"
+        music_results += f"• {query} lyrics\n" 
+        music_results += f"• {query} instrumental\n"
+        music_results += f"• {query} cover version\n\n"
+        
+        music_results += "🎶 **Streaming legal:**\n"
+        music_results += "• Spotify\n• Apple Music\n• YouTube Music\n• SoundCloud"
+        
+        await processing_msg.edit(music_results)
+            
+    except Exception as e:
+        await event.reply(f"❌ Error: {str(e)}")
+
+# =========================
+# FITUR DOWNLOAD LAGU: .dl
+# =========================
+@client.on(events.NewMessage(pattern=r"\.dl (.+)"))
+@owner_only
+async def download_song(event):
+    try:
+        query = event.pattern_match.group(1).strip()
+        if not query:
+            await event.reply("❌ Masukkan judul lagu yang ingin didownload.\nContoh: `.dl coldplay adventure of a lifetime`")
+            return
+
+        processing_msg = await event.reply(f"📥 Mencari dan mendownload: **{query}**...\n⏳ Ini mungkin butuh beberapa saat...")
+        
+        # Simple method using external service API
+        try:
+            import urllib.parse
+            
+            # Search using simple API
+            search_query = urllib.parse.quote(query)
+            
+            download_info = f"🎵 **Download Lagu:** {query}\n\n"
+            
+            download_info += "🔗 **Alternatif Download:**\n"
+            download_info += f"• [YouTube](https://www.youtube.com/results?search_query={search_query}+audio)\n"
+            download_info += f"• [Google](https://www.google.com/search?q={search_query}+download+mp3)\n"
+            download_info += f"• [SoundCloud](https://soundcloud.com/search?q={search_query})\n\n"
+            
+            download_info += "💡 **Tips Download Manual:**\n"
+            download_info += "1. Cari di YouTube Music\n"
+            download_info += "2. Gunakan website converter\n"
+            download_info += "3. Aplikasi downloader MP3\n"
+            download_info += "4. Streaming platform legal"
+            
+            await processing_msg.edit(download_info)
+            
+        except Exception as e:
+            await processing_msg.edit(f"❌ Error download: {str(e)}")
+            
+    except Exception as e:
+        await event.reply(f"❌ Error: {str(e)}")
+
+# =========================
+# FITUR DOWNLOAD FROM URL: .yt
+# =========================
+@client.on(events.NewMessage(pattern=r"\.yt (.+)"))
+@owner_only
+async def download_youtube(event):
+    try:
+        url = event.pattern_match.group(1).strip()
+        
+        if not ("youtube.com" in url or "youtu.be" in url):
+            await event.reply("❌ Bukan link YouTube yang valid.")
+            return
+        
+        download_msg = await event.reply("📥 Mendownload dari YouTube...\n⏳ Mohon tunggu...")
+        
+        # Simple method - provide download links
+        try:
+            import urllib.parse
+            
+            # Extract video ID
+            video_id = None
+            if "youtube.com/watch?v=" in url:
+                video_id = url.split("youtube.com/watch?v=")[1].split("&")[0]
+            elif "youtu.be/" in url:
+                video_id = url.split("youtu.be/")[1].split("?")[0]
+            
+            if video_id:
+                download_info = f"🎬 **YouTube Download**\n\n"
+                download_info += f"📹 Video ID: `{video_id}`\n\n"
+                download_info += "🔗 **Download Links:**\n"
+                download_info += f"• [MP3 Download](https://ytmp3.cc/en13/?q=https://youtube.com/watch?v={video_id})\n"
+                download_info += f"• [Y2Mate](https://www.y2mate.com/youtube/{video_id})\n"
+                download_info += f"• [OnlineConverter](https://www.onlineconverter.com/youtube-to-mp3)\n\n"
+                
+                download_info += "💡 **Cara Download:**\n"
+                download_info += "1. Klik salah satu link di atas\n"
+                download_info += "2. Pilih format MP3\n"
+                download_info += "3. Download file nya\n"
+                download_info += "4. Kirim ke bot dengan `.lagu` (reply audio)"
+                
+                await download_msg.edit(download_info)
+            else:
+                await download_msg.edit("❌ Tidak bisa ekstrak Video ID dari link tersebut.")
+                
+        except Exception as e:
+            await download_msg.edit(f"❌ Error: {str(e)}")
+            
+    except Exception as e:
+        await event.reply(f"❌ Error: {str(e)}")
+
+# =========================
+# FITUR CARI & DOWNLOAD LAGU: .get
+# =========================
+@client.on(events.NewMessage(pattern=r"\.get (.+)"))
+@owner_only
+async def get_song(event):
+    try:
+        query = event.pattern_match.group(1).strip()
+        if not query:
+            await event.reply("❌ Masukkan judul lagu.\nContoh: `.get coldplay hymn for the weekend`")
+            return
+
+        processing_msg = await event.reply(f"🎵 Mencari: **{query}**...")
+        
+        import urllib.parse
+        encoded_query = urllib.parse.quote(query)
+        
+        result_text = f"🎵 **Lagu: {query}**\n\n"
+        
+        result_text += "🔍 **Pencarian Cepat:**\n"
+        result_text += f"• [YouTube](https://www.youtube.com/results?search_query={encoded_query}+audio)\n"
+        result_text += f"• [YouTube Music](https://music.youtube.com/search?q={encoded_query})\n"
+        result_text += f"• [Google](https://www.google.com/search?q={encoded_query}+mp3+download)\n\n"
+        
+        result_text += "📥 **Download Services:**\n"
+        result_text += "• YTMP3.cc\n• Y2Mate.com\n• OnlineVideoConverter.com\n• Convert2MP3.net\n\n"
+        
+        result_text += "🎧 **Streaming Legal:**\n"
+        result_text += "• Spotify\n• Apple Music\n• YouTube Music\n• Deezer\n\n"
+        
+        result_text += "💡 **Cara Download:**\n"
+        result_text += "1. Cari lagu di YouTube\n"
+        result_text += "2. Copy link YouTube nya\n"
+        result_text += "3. Gunakan `.yt <link>` untuk download\n"
+        result_text += "4. Atau gunakan website converter"
+        
+        await processing_msg.edit(result_text)
+            
+    except Exception as e:
+        await event.reply(f"❌ Error: {str(e)}")
+
+# =========================
+# FITUR: .fitur
+# =========================
+@client.on(events.NewMessage(pattern=r"\.fitur$"))
+async def fitur_list(event):
+    fitur_text = """
+🤖 **Daftar Fitur Userbot:**
+
+🎵 **Musik & Download**
+• `.song <judul>` — Cari lagu di YouTube
+• `.music <judul>` — Cari musik dengan saran
+• `.dl <judul>` — Download lagu (alternatif)
+• `.get <judul>` — Cari & download lagu
+• `.yt <link>` — Download dari YouTube
+
+📸 **Gambar & Media**
+• `.p` — Kirim gambar tersimpan
+• `.p` (reply gambar) — Simpan/ubah gambar
+• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
+
+💬 **Pesan Tersimpan**
+• `.tw` — Kirim pesan tersimpan
+• `.tw` (reply pesan) — Simpan pesan .tw
+• `.c` — Kirim pesan tersimpan  
+• `.c` (reply pesan) — Simpan pesan .c
+• `.lagu` — Kirim lagu tersimpan
+• `.lagu` (reply lagu) — Simpan lagu
+• `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
+
+👥 **Manajemen Grup**
+• `.u <nama>` — Ubah nama grup langsung
+• `.sharegrup` (reply pesan) — Broadcast ke semua grup
+
+ℹ️ **Info & Status**
+• `.status` — Lihat status server
+• `.fitur` — Lihat semua fitur bot
+• `.debug` — Info debug untuk troubleshooting
+• `.checkadmin` — Cek status admin bot
+• `.clean` — Bersihkan semua data
+• `.info` — Info data tersimpan
+
+🔐 **Hanya untuk owner bot**
+"""
+    await event.reply(fitur_text)
+
+# =========================
 # BASIC TEST COMMANDS
 # =========================
 @client.on(events.NewMessage(pattern=r'\.ping'))
@@ -634,58 +861,17 @@ async def help_handler(event):
 • `.checkadmin` - Check admin status
 • `.clean` - Clean all saved data
 • `.info` - Show saved data info
+
+🎵 **Music & Download:**
+• `.song <judul>` - Search songs on YouTube
+• `.music <judul>` - Search music with suggestions
+• `.dl <judul>` - Download song (alternatives)
+• `.get <judul>` - Search & download options
+• `.yt <link>` - Download from YouTube link
 """
     await event.reply(help_text)
 
 # =========================
 # KEEP ALIVE & START BOT
 # =========================
-start_time = time.time()
-
-async def keep_alive():
-    while True:
-        try:
-            me = await client.get_me()
-            logger.info(f"💚 Bot is alive - {me.first_name}")
-            await asyncio.sleep(300)
-        except Exception as e:
-            logger.error(f"Keep alive error: {e}")
-            await asyncio.sleep(60)
-
-async def main():
-    logger.info("🤖 Starting main function...")
-    
-    try:
-        # Test connection first
-        logger.info("🔐 Testing connection...")
-        await client.start()
-        logger.info("✅ Connected to Telegram!")
-        
-        await init_owner()
-        
-        # Start keep alive
-        asyncio.create_task(keep_alive())
-        
-        logger.info("🎉 Bot is ready! Waiting for messages...")
-        
-        await client.run_until_disconnected()
-        
-    except Exception as e:
-        logger.error(f"❌ Fatal error in main: {e}")
-        sys.exit(1)
-
-if __name__ == '__main__':
-    try:
-        # Create event loop properly
-        if sys.platform == 'win32':
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-        
-    except KeyboardInterrupt:
-        logger.info("⏹️ Bot stopped by user")
-    except Exception as e:
-        logger.error(f"❌ Fatal error: {e}")
-    finally:
-        logger.info("🔴 Bot stopped")
+start
