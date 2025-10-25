@@ -252,17 +252,16 @@ async def monitor_new_groups(event):
         pass
 
 # =========================
-# FITUR MANUAL CHECK: .checkgroups
+# FITUR MANUAL CHECK: .checkgroups (FIXED VERSION)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.checkgroups$"))
 @owner_only
 async def manual_check_groups(event):
-    """Manual check untuk melihat semua grup dan deteksi grup baru"""
+    """Manual check untuk melihat semua grup"""
     try:
         processing_msg = await event.reply("🔄 Memeriksa semua grup...")
         
         groups = []
-        new_groups = []
         
         async for dialog in client.iter_dialogs():
             if dialog.is_group:
@@ -270,43 +269,32 @@ async def manual_check_groups(event):
                     'name': dialog.name,
                     'id': dialog.id,
                     'unread': dialog.unread_count,
-                    'date': dialog.date
+                    'archived': dialog.archived
                 }
                 groups.append(group_info)
-                
-                # Cek jika grup ini baru (dibuat dalam 24 jam terakhir)
-                if (datetime.now() - dialog.date).total_seconds() < 86400:  # 24 jam
-                    new_groups.append(group_info)
         
-        # Buat laporan
+        # Buat laporan sederhana
         report = f"""
 📊 **LAPORAN GRUP MANUAL**
 
 📈 **Statistik:**
 • Total Grup: {len(groups)}
-• Grup Baru (24 jam): {len(new_groups)}
 
-"""
+📋 **Daftar Grup:**\n"""
         
-        if new_groups:
-            report += "🆕 **Grup Baru:**\n"
-            for group in new_groups:
-                report += f"• **{group['name']}** (ID: `{group['id']}`)\n"
-            report += "\n"
-        
-        report += "📋 **Semua Grup:**\n"
-        for i, group in enumerate(groups[:10], 1):  # Batasi 10 grup pertama
+        for i, group in enumerate(groups[:15], 1):  # Batasi 15 grup pertama
+            status = "📁 Archived" if group['archived'] else "✅ Active"
+            unread = f"📨 {group['unread']} unread" if group['unread'] > 0 else "📭 No unread"
             report += f"{i}. **{group['name']}**\n"
+            report += f"   • ID: `{group['id']}`\n"
+            report += f"   • {status} | {unread}\n\n"
         
-        if len(groups) > 10:
-            report += f"\n...dan {len(groups) - 10} grup lainnya"
+        if len(groups) > 15:
+            report += f"📋 ...dan {len(groups) - 15} grup lainnya\n\n"
         
-        report += "\n\n━━━━━━━━━━━━━━━━━━\n🤖 Bot by denz | @denzwel1"
+        report += "━━━━━━━━━━━━━━━━━━\n🤖 Bot by denz | @denzwel1"
         
         await processing_msg.edit(report)
-        
-        # Kirim juga ke saved messages
-        await client.send_message('me', f"📊 Manual group check completed:\nTotal groups: {len(groups)}\nNew groups: {len(new_groups)}")
         
     except Exception as e:
         await event.reply(f"❌ Error manual check: {e}")
