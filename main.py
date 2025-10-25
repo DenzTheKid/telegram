@@ -839,6 +839,11 @@ async def fitur_list(event):
 • `.info` — Info data tersimpan
 
 🔐 **Hanya untuk owner bot**
+
+━━━━━━━━━━━━━━━━━━
+🤖 **Bot by denz**
+📧 **Contact**: @denzwel1
+━━━━━━━━━━━━━━━━━━
 """
     await event.reply(fitur_text)
 
@@ -923,3 +928,4 @@ if __name__ == '__main__':
         logger.error(f"❌ Fatal error: {e}")
     finally:
         logger.info("🔴 Bot stopped")
+
