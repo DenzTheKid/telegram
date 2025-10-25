@@ -132,7 +132,7 @@ async def kirim_gambar(event):
 @owner_only
 async def simpan_gambar(event):
     reply = await event.get_reply_message()
-    if reply.media:
+    if reply and reply.media:
         try:
             # Buat folder downloads jika tidak ada
             if not os.path.exists('downloads'):
@@ -163,7 +163,7 @@ async def ubah_nama_grup(event):
         await event.reply(f"✅ Nama grup berhasil diganti menjadi **{new_name}**")
     except Exception as e:
         error_msg = str(e)
-        if "wait" in error_msg:
+        if "wait" in error_msg.lower():
             await event.reply("⏰ Terlalu sering mengganti nama! Tunggu beberapa menit.")
         else:
             await event.reply(f"❌ Gagal ubah nama grup: {error_msg}")
@@ -175,16 +175,24 @@ async def ubah_nama_grup(event):
 @owner_only
 async def simpan_tw(event):
     reply = await event.get_reply_message()
-    data["tw"] = reply.id
-    save_data(data)
-    await event.reply("💾 Pesan ini sudah tersimpan untuk .tw")
+    if reply:
+        data["tw"] = reply.id
+        save_data(data)
+        await event.reply("💾 Pesan ini sudah tersimpan untuk .tw")
+    else:
+        await event.reply("⚠️ Tidak ada pesan yang dibalas.")
 
 @client.on(events.NewMessage(pattern=r"\.tw$"))
 @owner_only
 async def kirim_tw(event):
     if data.get("tw"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["tw"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer="me", 
+                id=[data["tw"]], 
+                to_peer=event.chat_id,
+                drop_author=True
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .tw\nError: {e}")
     else:
@@ -197,16 +205,24 @@ async def kirim_tw(event):
 @owner_only
 async def simpan_c(event):
     reply = await event.get_reply_message()
-    data["c"] = reply.id
-    save_data(data)
-    await event.reply("💾 Pesan ini sudah tersimpan untuk .c")
+    if reply:
+        data["c"] = reply.id
+        save_data(data)
+        await event.reply("💾 Pesan ini sudah tersimpan untuk .c")
+    else:
+        await event.reply("⚠️ Tidak ada pesan yang dibalas.")
 
 @client.on(events.NewMessage(pattern=r"\.c$"))
 @owner_only
 async def kirim_c(event):
     if data.get("c"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["c"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer="me", 
+                id=[data["c"]], 
+                to_peer=event.chat_id,
+                drop_author=True
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .c\nError: {e}")
     else:
@@ -219,16 +235,24 @@ async def kirim_c(event):
 @owner_only
 async def simpan_lagu(event):
     reply = await event.get_reply_message()
-    data["lagu"] = reply.id
-    save_data(data)
-    await event.reply("🎵 Lagu ini sudah tersimpan untuk .lagu")
+    if reply:
+        data["lagu"] = reply.id
+        save_data(data)
+        await event.reply("🎵 Lagu ini sudah tersimpan untuk .lagu")
+    else:
+        await event.reply("⚠️ Tidak ada pesan yang dibalas.")
 
 @client.on(events.NewMessage(pattern=r"\.lagu$"))
 @owner_only
 async def kirim_lagu(event):
     if data.get("lagu"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["lagu"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer="me", 
+                id=[data["lagu"]], 
+                to_peer=event.chat_id,
+                drop_author=True
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim lagu.\nError: {e}")
     else:
@@ -241,16 +265,22 @@ async def kirim_lagu(event):
 @owner_only
 async def share_to_all_groups(event):
     reply = await event.get_reply_message()
+    if not reply:
+        await event.reply("⚠️ Balas pesan yang ingin di-share.")
+        return
+        
     sent_count = 0
+    error_count = 0
     async for dialog in client.iter_dialogs():
         if dialog.is_group:
             try:
                 await client.send_message(dialog.id, reply)
                 sent_count += 1
                 await asyncio.sleep(1)  # Delay untuk hindari spam
-            except:
-                pass
-    await event.reply(f"📢 Pesan berhasil dikirim ke {sent_count} grup!")
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Gagal kirim ke {dialog.name}: {e}")
+    await event.reply(f"📢 Pesan berhasil dikirim ke {sent_count} grup! Gagal: {error_count}")
 
 # =========================
 # FITUR: .fitur
@@ -288,7 +318,12 @@ async def kirim_tersimpan(event):
         await event.reply(f"🗃️ Tidak ada pesan tersimpan untuk .{key}")
         return
     try:
-        await client(ForwardMessagesRequest(from_peer="me", id=[pesan_id], to_peer=event.chat_id))
+        await client(ForwardMessagesRequest(
+            from_peer="me", 
+            id=[pesan_id], 
+            to_peer=event.chat_id,
+            drop_author=True
+        ))
     except Exception as e:
         await event.reply(f"⚠️ Gagal mengirim pesan .{key}\nError: {e}")
 
@@ -316,7 +351,7 @@ async def ganti_profil_grup(event):
                 if not getattr(participant.participant, 'admin_rights', None):
                     await event.reply("⚠️ Bot harus menjadi admin dengan hak ubah info untuk mengganti foto grup")
                     return
-            except:
+            except Exception as admin_error:
                 await event.reply("⚠️ Bot harus menjadi admin dengan hak ubah info untuk mengganti foto grup")
                 return
 
@@ -326,27 +361,10 @@ async def ganti_profil_grup(event):
             await event.reply("✅ Profil grup berhasil diganti!")
         
         else:
-            # Untuk grup biasa - method alternatif
+            # Untuk grup biasa
             try:
-                uploaded_file = await client.upload_file(file_path)
-                result = await client(UploadProfilePhotoRequest(file=uploaded_file))
-                
-                input_photo = InputPhoto(
-                    id=result.photo.id,
-                    access_hash=result.photo.access_hash,
-                    file_reference=result.photo.file_reference
-                )
-                
-                from telethon.tl.functions.messages import EditChatPhotoRequest
-                await client(EditChatPhotoRequest(
-                    chat_id=entity.id,
-                    photo=input_photo
-                ))
-                
-                # Hapus foto dari profil kita
-                await client(DeletePhotosRequest(id=[result.photo]))
-                
-                await event.reply("✅ Profil grup berhasil diganti!")
+                await client.send_file(entity, file_path, caption="🔄 Mengganti foto grup...")
+                await event.reply("✅ Foto grup berhasil diupdate!")
             except Exception as e2:
                 await event.reply(f"⚠️ Gagal mengganti profil grup: {e2}")
 
@@ -395,4 +413,22 @@ async def main():
 
 if __name__ == '__main__':
     logger.info("🚀 Starting main function...")
-    client.loop.run_until_complete(main())
+    
+    # Handle asyncio event loop untuk environment yang berbeda
+    try:
+        if hasattr(asyncio, 'get_running_loop'):
+            loop = asyncio.get_running_loop()
+        else:
+            loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        logger.info("⏹️ Bot stopped by user")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
+    finally:
+        logger.info("🔴 Bot stopped")
