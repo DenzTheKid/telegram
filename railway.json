@@ -1,13 +1,8 @@
 {
   "build": {
-    "builder": "heroku/buildpacks:20"
+    "builder": "NIXPACKS"
   },
-  "buildpacks": [
-    {
-      "url": "heroku/python"
-    },
-    {
-      "url": "https://github.com/yt-dlp/FFmpeg-Builds"
-    }
-  ]
+  "deploy": {
+    "startCommand": "python3 -m bot"
+  }
 }
