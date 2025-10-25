@@ -115,31 +115,46 @@ def owner_only(func):
     return wrapper
 
 # =========================
-# FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP
+# FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP (FIXED VERSION)
 # =========================
 @client.on(events.ChatAction)
 async def chat_action_handler(event):
     try:
-        # Cek jika bot ditambahkan ke grup
-        if event.user_added and await event.get_user() == (await client.get_me()):
-            added_by = await event.get_user()
-            chat = await event.get_chat()
+        # Debug log
+        logger.info(f"🔍 ChatAction event detected: {event.action_message}")
+        
+        # Cek jika ada user yang ditambahkan
+        if event.user_added:
+            added_users = await event.get_users()
+            me = await client.get_me()
             
-            # Informasi tentang yang menambahkan
-            adder_name = f"{added_by.first_name or ''} {added_by.last_name or ''}".strip()
-            adder_username = f"@{added_by.username}" if added_by.username else "Tidak ada username"
-            adder_id = added_by.id
-            
-            # Informasi tentang grup
-            chat_title = getattr(chat, 'title', 'Unknown Group')
-            chat_id = chat.id
-            chat_username = f"@{chat.username}" if getattr(chat, 'username', None) else "Tidak ada username"
-            
-            # Waktu saat ini
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Buat pesan notifikasi
-            notification_msg = f"""
+            # Cek jika bot yang ditambahkan
+            if any(user.id == me.id for user in added_users):
+                added_by_user = await event.get_user()
+                chat = await event.get_chat()
+                
+                # Informasi tentang yang menambahkan
+                adder_name = f"{added_by_user.first_name or ''} {added_by_user.last_name or ''}".strip()
+                adder_username = f"@{added_by_user.username}" if added_by_user.username else "Tidak ada username"
+                adder_id = added_by_user.id
+                
+                # Informasi tentang grup
+                chat_title = getattr(chat, 'title', 'Unknown Group')
+                chat_id = chat.id
+                chat_username = f"@{chat.username}" if getattr(chat, 'username', None) else "Tidak ada username"
+                
+                # Hitung jumlah member
+                try:
+                    participants_count = await client.get_participants(chat, limit=0)
+                    member_count = len(participants_count)
+                except:
+                    member_count = "Tidak bisa dihitung"
+                
+                # Waktu saat ini
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Buat pesan notifikasi
+                notification_msg = f"""
 🔔 **BOT DITAMBAHKAN KE GRUP BARU**
 
 👤 **Ditambahkan oleh:**
@@ -151,7 +166,7 @@ async def chat_action_handler(event):
 • **Nama Grup**: {chat_title}
 • **Username Grup**: {chat_username}
 • **ID Grup**: `{chat_id}`
-• **Jumlah Member**: {getattr(chat, 'participants_count', 'Unknown')}
+• **Jumlah Member**: {member_count}
 
 📅 **Waktu**: {current_time}
 
@@ -159,23 +174,23 @@ async def chat_action_handler(event):
 🤖 Bot by denz | @denzwel1
 """
 
-            # Kirim ke saved messages
-            await client.send_message('me', notification_msg)
-            
-            # Log ke console
-            logger.info(f"✅ Bot ditambahkan ke grup '{chat_title}' oleh {adder_name} ({adder_id})")
-            
-            # Optional: Kirim pesan sambutan di grup
-            try:
-                welcome_msg = f"""
+                # Kirim ke saved messages
+                await client.send_message('me', notification_msg)
+                
+                # Log ke console
+                logger.info(f"✅ Bot ditambahkan ke grup '{chat_title}' oleh {adder_name} ({adder_id})")
+                
+                # Kirim pesan sambutan di grup
+                try:
+                    welcome_msg = f"""
 🤖 **Halo semuanya!**
 
-Terima kasih sudah menambahkan saya ke grup ini.
+Terima kasih sudah menambahkan saya ke grup **{chat_title}**.
 
 **Fitur yang tersedia:**
-• Ganti nama grup (.u <nama>)
-• Ganti foto grup (.ppgb)
-• Kirim pesan tersimpan (.tw, .c, .lagu)
+• Ganti nama grup (`.u <nama>`)
+• Ganti foto grup (`.ppgb`)
+• Kirim pesan tersimpan (`.tw`, `.c`, `.lagu`)
 • Dan masih banyak lagi!
 
 Ketik `.fitur` untuk melihat semua fitur.
@@ -183,12 +198,118 @@ Ketik `.fitur` untuk melihat semua fitur.
 ━━━━━━━━━━━━━━━━━━
 Bot by denz | @denzwel1
 """
-                await event.reply(welcome_msg)
-            except Exception as welcome_error:
-                logger.warning(f"⚠️ Tidak bisa kirim pesan sambutan: {welcome_error}")
-                
+                    await event.reply(welcome_msg)
+                except Exception as welcome_error:
+                    logger.warning(f"⚠️ Tidak bisa kirim pesan sambutan: {welcome_error}")
+                    
     except Exception as e:
         logger.error(f"❌ Error di chat_action_handler: {e}")
+
+# =========================
+# FITUR ALTERNATIF: DETEKSI GRUP BARU DARI DIALOG UPDATE
+# =========================
+@client.on(events.NewMessage)
+async def monitor_new_groups(event):
+    try:
+        # Cek jika ini pesan sistem tentang pembuatan grup
+        if event.action:
+            action_message = str(event.action)
+            if any(keyword in action_message.lower() for keyword in ['create', 'add', 'invite']):
+                me = await client.get_me()
+                chat = await event.get_chat()
+                
+                # Cek jika bot ada di daftar participant
+                try:
+                    participants = await client.get_participants(chat)
+                    if me.id in [p.id for p in participants]:
+                        # Bot baru ditambahkan ke grup
+                        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        notification_msg = f"""
+🔔 **BOT DITEMUKAN DI GRUP BARU**
+
+👥 **Info Grup:**
+• **Nama Grup**: {getattr(chat, 'title', 'Unknown')}
+• **Username**: @{getattr(chat, 'username', 'Tidak ada')}
+• **ID Grup**: `{chat.id}`
+• **Jumlah Member**: {len(participants)}
+
+📅 **Waktu Deteksi**: {current_time}
+
+💡 **Catatan**: Bot mungkin sudah lama di grup ini, atau baru ditambahkan.
+
+━━━━━━━━━━━━━━━━━━
+🤖 Bot by denz | @denzwel1
+"""
+                        await client.send_message('me', notification_msg)
+                        logger.info(f"📝 Bot terdeteksi di grup baru: {getattr(chat, 'title', 'Unknown')}")
+                        
+                except Exception as part_error:
+                    logger.warning(f"⚠️ Tidak bisa cek participants: {part_error}")
+                    
+    except Exception as e:
+        # Skip error untuk avoid spam
+        pass
+
+# =========================
+# FITUR MANUAL CHECK: .checkgroups
+# =========================
+@client.on(events.NewMessage(pattern=r"\.checkgroups$"))
+@owner_only
+async def manual_check_groups(event):
+    """Manual check untuk melihat semua grup dan deteksi grup baru"""
+    try:
+        processing_msg = await event.reply("🔄 Memeriksa semua grup...")
+        
+        groups = []
+        new_groups = []
+        
+        async for dialog in client.iter_dialogs():
+            if dialog.is_group:
+                group_info = {
+                    'name': dialog.name,
+                    'id': dialog.id,
+                    'unread': dialog.unread_count,
+                    'date': dialog.date
+                }
+                groups.append(group_info)
+                
+                # Cek jika grup ini baru (dibuat dalam 24 jam terakhir)
+                if (datetime.now() - dialog.date).total_seconds() < 86400:  # 24 jam
+                    new_groups.append(group_info)
+        
+        # Buat laporan
+        report = f"""
+📊 **LAPORAN GRUP MANUAL**
+
+📈 **Statistik:**
+• Total Grup: {len(groups)}
+• Grup Baru (24 jam): {len(new_groups)}
+
+"""
+        
+        if new_groups:
+            report += "🆕 **Grup Baru:**\n"
+            for group in new_groups:
+                report += f"• **{group['name']}** (ID: `{group['id']}`)\n"
+            report += "\n"
+        
+        report += "📋 **Semua Grup:**\n"
+        for i, group in enumerate(groups[:10], 1):  # Batasi 10 grup pertama
+            report += f"{i}. **{group['name']}**\n"
+        
+        if len(groups) > 10:
+            report += f"\n...dan {len(groups) - 10} grup lainnya"
+        
+        report += "\n\n━━━━━━━━━━━━━━━━━━\n🤖 Bot by denz | @denzwel1"
+        
+        await processing_msg.edit(report)
+        
+        # Kirim juga ke saved messages
+        await client.send_message('me', f"📊 Manual group check completed:\nTotal groups: {len(groups)}\nNew groups: {len(new_groups)}")
+        
+    except Exception as e:
+        await event.reply(f"❌ Error manual check: {e}")
 
 # =========================
 # FITUR: STATUS SERVER
@@ -966,7 +1087,7 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .fitur
+# FITUR: .fitur (UPDATED)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
 async def fitur_list(event):
@@ -999,9 +1120,11 @@ async def fitur_list(event):
 • `.sharegrup` (reply pesan) — Broadcast ke semua grup
 • `.grpinfo` — Info grup saat ini
 • `.listgrp` — List semua grup yang diikuti
+• `.checkgroups` — Manual check semua grup
 
 🔔 **Monitoring**
 • **Auto-Notif** — Notifikasi otomatis ketika bot ditambahkan ke grup baru
+• **Deteksi Otomatis** — Sistem deteksi grup baru
 
 ℹ️ **Info & Status**
 • `.status` — Lihat status server
@@ -1050,6 +1173,7 @@ async def help_handler(event):
 👥 **Group Management:**
 • `.grpinfo` - Current group info
 • `.listgrp` - List all groups
+• `.checkgroups` - Manual check all groups
 • **Auto-Notification** - Get notified when bot is added to new groups
 """
     await event.reply(help_text)
