@@ -816,6 +816,7 @@ async def generate_qr_manual(event):
 
 **📱 Method 1: Session Generator Script (Recommended)**
 1. Buat file `session_generator.py` dengan content berikut:
+
 ```python
 from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
@@ -832,12 +833,12 @@ with TelegramClient(StringSession(), API_ID, API_HASH) as client:
     session_string = client.session.save()
     me = client.get_me()
     
-    print(f"\\n✅ LOGIN BERHASIL!")
+    print(f"✅ LOGIN BERHASIL!")
     print(f"👤 Name: {me.first_name}")
     print(f"📞 Phone: {me.phone}")
     print(f"🆔 ID: {me.id}")
-    print(f"\\n🔐 SESSION STRING:")
+    print(f"🔐 SESSION STRING:")
     print("=" * 50)
     print(session_string)
     print("=" * 50)
-    print(f"\\n💡 Tambahkan sebagai SESSION_2 di Railway!")
+    print(f"💡 Tambahkan sebagai SESSION_2 di Railway!")
