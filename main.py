@@ -39,12 +39,6 @@ from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, G
 from telethon.tl.types import Channel, InputChatUploadedPhoto
 import json, asyncio, time
 
-# =========================
-# IMPORT UNTUK FITUR .genqr (FIXED)
-# =========================
-import qrcode
-from io import BytesIO
-
 logger.info("📦 Importing Telethon modules...")
 
 # Initialize client dengan session string
@@ -804,41 +798,128 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .genqr (MANUAL SESSION GUIDE - COMPATIBLE)
+# FITUR: .fitur
 # =========================
-@client.on(events.NewMessage(pattern=r'\.genqr'))
-@owner_only
-async def generate_qr_manual(event):
-    """Manual guide untuk generate session - Compatible Version"""
+@client.on(events.NewMessage(pattern=r"\.fitur$"))
+async def fitur_list(event):
+    fitur_text = """
+🤖 **Daftar Fitur Userbot:**
+
+🎵 **Musik & Download**
+• `.song <judul>` — Cari lagu di YouTube
+• `.music <judul>` — Cari musik dengan saran
+• `.dl <judul>` — Download lagu (alternatif)
+• `.get <judul>` — Cari & download lagu
+• `.yt <link>` — Download dari YouTube
+
+📸 **Gambar & Media**
+• `.p` — Kirim gambar tersimpan
+• `.p` (reply gambar) — Simpan/ubah gambar
+• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
+
+💬 **Pesan Tersimpan**
+• `.tw` — Kirim pesan tersimpan
+• `.tw` (reply pesan) — Simpan pesan .tw
+• `.c` — Kirim pesan tersimpan  
+• `.c` (reply pesan) — Simpan pesan .c
+• `.lagu` — Kirim lagu tersimpan
+• `.lagu` (reply lagu) — Simpan lagu
+• `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
+
+👥 **Manajemen Grup**
+• `.u <nama>` — Ubah nama grup langsung
+• `.sharegrup` (reply pesan) — Broadcast ke semua grup
+
+ℹ️ **Info & Status**
+• `.status` — Lihat status server
+• `.fitur` — Lihat semua fitur bot
+• `.debug` — Info debug untuk troubleshooting
+• `.checkadmin` — Cek status admin bot
+• `.clean` — Bersihkan semua data
+• `.info` — Info data tersimpan
+
+🔐 **Hanya untuk owner bot**
+"""
+    await event.reply(fitur_text)
+
+# =========================
+# BASIC TEST COMMANDS
+# =========================
+@client.on(events.NewMessage(pattern=r'\.ping'))
+async def ping_handler(event):
+    await event.reply('🏓 Pong!')
+
+@client.on(events.NewMessage(pattern=r'\.help'))
+async def help_handler(event):
+    help_text = """
+🤖 **Basic Commands:**
+• `.ping` - Test bot response
+• `.status` - Bot status
+• `.help` - This message
+• `.fitur` - All features
+• `.debug` - Debug info
+• `.checkadmin` - Check admin status
+• `.clean` - Clean all saved data
+• `.info` - Show saved data info
+
+🎵 **Music & Download:**
+• `.song <judul>` - Search songs on YouTube
+• `.music <judul>` - Search music with suggestions
+• `.dl <judul>` - Download song (alternatives)
+• `.get <judul>` - Search & download options
+• `.yt <link>` - Download from YouTube link
+"""
+    await event.reply(help_text)
+
+# =========================
+# KEEP ALIVE & START BOT
+# =========================
+start_time = time.time()
+
+async def keep_alive():
+    while True:
+        try:
+            me = await client.get_me()
+            logger.info(f"💚 Bot is alive - {me.first_name}")
+            await asyncio.sleep(300)
+        except Exception as e:
+            logger.error(f"Keep alive error: {e}")
+            await asyncio.sleep(60)
+
+async def main():
+    logger.info("🤖 Starting main function...")
     
-    guide_text = """
-🔐 **CARA GENERATE SESSION UNTUK AKUN BARU:**
+    try:
+        # Test connection first
+        logger.info("🔐 Testing connection...")
+        await client.start()
+        logger.info("✅ Connected to Telegram!")
+        
+        await init_owner()
+        
+        # Start keep alive
+        asyncio.create_task(keep_alive())
+        
+        logger.info("🎉 Bot is ready! Waiting for messages...")
+        
+        await client.run_until_disconnected()
+        
+    except Exception as e:
+        logger.error(f"❌ Fatal error in main: {e}")
+        sys.exit(1)
 
-**📱 Method 1: Session Generator Script (Recommended)**
-1. Buat file `session_generator.py` dengan content berikut:
-
-```python
-from telethon.sync import TelegramClient
-from telethon.sessions import StringSession
-
-API_ID = 27037133
-API_HASH = "0698732c74d471bca5b7fbba076c52b7"
-
-print("📱 Telegram Session Generator")
-print("=" * 40)
-print("Scan QR code yang muncul...")
-
-with TelegramClient(StringSession(), API_ID, API_HASH) as client:
-    client.start()
-    session_string = client.session.save()
-    me = client.get_me()
-    
-    print(f"✅ LOGIN BERHASIL!")
-    print(f"👤 Name: {me.first_name}")
-    print(f"📞 Phone: {me.phone}")
-    print(f"🆔 ID: {me.id}")
-    print(f"🔐 SESSION STRING:")
-    print("=" * 50)
-    print(session_string)
-    print("=" * 50)
-    print(f"💡 Tambahkan sebagai SESSION_2 di Railway!")
+if __name__ == '__main__':
+    try:
+        # Create event loop properly
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+        
+    except KeyboardInterrupt:
+        logger.info("⏹️ Bot stopped by user")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
+    finally:
+        logger.info("🔴 Bot stopped")
