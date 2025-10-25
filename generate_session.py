@@ -9,10 +9,20 @@ async def main():
     client = TelegramClient(StringSession(), API_ID, API_HASH)
     await client.start()
     
-    print("✅ Session created successfully!")
-    print("📱 Phone:", (await client.get_me()).phone)
-    print(f"🔐 Session String: {client.session.save()}")
+    me = await client.get_me()
+    print("\n" + "="*50)
+    print("✅ SESSION GENERATED SUCCESSFULLY!")
+    print("="*50)
+    print(f"👤 User: {me.first_name}")
+    print(f"📱 Phone: {me.phone}")
+    print(f"🆔 ID: {me.id}")
+    print("\n🔐 **SESSION STRING:**")
+    print("="*50)
+    print(client.session.save())
+    print("="*50)
+    print("\n💡 **COPY THE STRING ABOVE and set as SESSION_STRING environment variable**")
     
     await client.disconnect()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
