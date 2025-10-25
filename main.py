@@ -1,5 +1,43 @@
-import os
+# Fix untuk Python 3.11+ yang menghapus imghdr
 import sys
+if sys.version_info >= (3, 11):
+    import importlib.resources as importlib_resources
+    import shutil
+    import tempfile
+    
+    # Create temporary imghdr module
+    imghdr_code = '''
+def what(file, h=None):
+    if h is None:
+        with open(file, 'rb') as f:
+            h = f.read(32)
+    if h.startswith(b'\\xff\\xd8\\xff'):
+        return 'jpeg'
+    elif h.startswith(b'\\x89PNG\\r\\n\\x1a\\n'):
+        return 'png'
+    elif h.startswith(b'GIF8'):
+        return 'gif'
+    elif h.startswith(b'BM'):
+        return 'bmp'
+    elif h.startswith(b'\\x49\\x49\\x2a\\x00'):
+        return 'tiff'
+    elif h.startswith(b'MM\\x00\\x2a'):
+        return 'tiff'
+    elif h.startswith(b'RIFF') and h[8:12] == b'WEBP':
+        return 'webp'
+    return None
+'''
+    
+    # Create temporary module
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(imghdr_code)
+        temp_path = f.name
+    
+    # Add to Python path
+    sys.path.insert(0, temp_path)
+
+# Now import the rest
+import os
 import logging
 import json
 import asyncio
@@ -199,7 +237,10 @@ async def kirim_tw(event):
             await client(ForwardMessagesRequest(
                 from_peer=await client.get_input_entity("me"),
                 id=[data["tw"]],
-                to_peer=event.chat_id
+                to_peer=event.chat_id,
+                drop_author=True,
+                drop_media_captions=False,
+                noforwards=False
             ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .tw\nError: {e}")
@@ -228,7 +269,10 @@ async def kirim_c(event):
             await client(ForwardMessagesRequest(
                 from_peer=await client.get_input_entity("me"),
                 id=[data["c"]],
-                to_peer=event.chat_id
+                to_peer=event.chat_id,
+                drop_author=True,
+                drop_media_captions=False,
+                noforwards=False
             ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .c\nError: {e}")
@@ -257,7 +301,10 @@ async def kirim_lagu(event):
             await client(ForwardMessagesRequest(
                 from_peer=await client.get_input_entity("me"),
                 id=[data["lagu"]],
-                to_peer=event.chat_id
+                to_peer=event.chat_id,
+                drop_author=True,
+                drop_media_captions=False,
+                noforwards=False
             ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim lagu.\nError: {e}")
@@ -265,7 +312,7 @@ async def kirim_lagu(event):
         await event.reply("🗃️ Tag .lagu belum tersimpan di database.")
 
 # =========================
-# FITUR: .sharegrup
+# FITUR: .sharegrup (Dengan Konfirmasi)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.sharegrup$", func=lambda e: e.is_reply))
 @owner_only
@@ -274,22 +321,42 @@ async def share_to_all_groups(event):
     if not reply:
         await event.reply("⚠️ Balas pesan untuk di-share.")
         return
+    
+    # Konfirmasi dulu
+    confirm = await event.reply("⚠️ **KONFIRMASI BROADCAST**\nAnda akan mengirim pesan ini ke SEMUA grup. Lanjutkan? (ketik `ya` untuk melanjutkan)")
+    
+    try:
+        # Tunggu konfirmasi
+        response = await client.wait_for(
+            events.NewMessage(chats=event.chat_id, from_users=OWNER_ID),
+            timeout=30
+        )
+        
+        if response.text.lower() != 'ya':
+            await event.reply("❌ Broadcast dibatalkan.")
+            return
+    except asyncio.TimeoutError:
+        await event.reply("❌ Waktu konfirmasi habis. Broadcast dibatalkan.")
+        return
         
     sent_count = 0
+    failed_count = 0
     async for dialog in client.iter_dialogs():
         if dialog.is_group:
             try:
                 await client.send_message(dialog.id, reply)
                 sent_count += 1
-                await asyncio.sleep(1)  # Delay untuk hindari spam
+                await asyncio.sleep(2)  # Tambah delay untuk hindari limit
             except Exception as e:
+                failed_count += 1
                 logger.error(f"Failed to send to {dialog.name}: {e}")
-    await event.reply(f"📢 Pesan berhasil dikirim ke {sent_count} grup!")
+    
+    await event.reply(f"📢 **BROADCAST REPORT**\n✅ Berhasil: {sent_count} grup\n❌ Gagal: {failed_count} grup")
 
 # =========================
-# FITUR: .fitur
+# FITUR: .fitur & .help
 # =========================
-@client.on(events.NewMessage(pattern=r"\.fitur$"))
+@client.on(events.NewMessage(pattern=r"\.(fitur|help|commands)$"))
 async def fitur_list(event):
     fitur_text = """
 🤖 Daftar Fitur Userbot:
@@ -306,7 +373,7 @@ async def fitur_list(event):
 • `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
 • `.ppgb` — Ganti foto profil grup sesuai gambar di .p
 • `.status` — Lihat status server
-• `.fitur` — Lihat semua fitur bot
+• `.fitur` / `.help` — Lihat semua fitur bot
 """
     await event.reply(fitur_text)
 
@@ -325,7 +392,10 @@ async def kirim_tersimpan(event):
         await client(ForwardMessagesRequest(
             from_peer=await client.get_input_entity("me"),
             id=[pesan_id],
-            to_peer=event.chat_id
+            to_peer=event.chat_id,
+            drop_author=True,
+            drop_media_captions=False,
+            noforwards=False
         ))
     except Exception as e:
         await event.reply(f"⚠️ Gagal mengirim pesan .{key}\nError: {e}")
