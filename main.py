@@ -1,6 +1,9 @@
 import os
 import sys
 import logging
+import json
+import asyncio
+import time
 
 # Setup logging immediately dengan output ke stdout
 logging.basicConfig(
@@ -39,14 +42,17 @@ except Exception as e:
 # =========================
 # KODE USERBOT ASLI
 # =========================
-from telethon import TelegramClient, events, functions
-from telethon.tl.functions.messages import ForwardMessagesRequest, EditChatTitleRequest
-from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, GetParticipantRequest
-from telethon.tl.types import Channel, InputChatUploadedPhoto, InputPhoto
-from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
-import json, asyncio, time
-
-logger.info("📦 Importing Telethon modules...")
+try:
+    from telethon import TelegramClient, events
+    from telethon.tl.functions.messages import ForwardMessagesRequest, EditChatTitleRequest
+    from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, GetParticipantRequest
+    from telethon.tl.types import Channel, InputChatUploadedPhoto
+    from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
+    from telethon.tl.types import InputPhoto
+    logger.info("✅ Telethon modules imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import Telethon modules: {e}")
+    sys.exit(1)
 
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 DATA_FILE = "userbot_data.json"
@@ -59,7 +65,8 @@ def load_data():
         try:
             with open(DATA_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except Exception as e:
+            logger.error(f"Error loading data: {e}")
             return {"p": None, "tw": None, "c": None, "lagu": None}
     return {"p": None, "tw": None, "c": None, "lagu": None}
 
@@ -78,9 +85,9 @@ async def init_owner():
     try:
         me = await client.get_me()
         OWNER_ID = me.id
-        logger.info(f"Bot started for user: {me.first_name} (ID: {me.id})")
+        logger.info(f"✅ Bot started for user: {me.first_name} (ID: {me.id})")
     except Exception as e:
-        logger.error(f"Failed to initialize owner: {e}")
+        logger.error(f"❌ Failed to initialize owner: {e}")
 
 def owner_only(func):
     async def wrapper(event):
@@ -96,6 +103,8 @@ def owner_only(func):
 # =========================
 # FITUR: STATUS SERVER
 # =========================
+start_time = time.time()
+
 @client.on(events.NewMessage(pattern=r'\.status'))
 @owner_only
 async def server_status(event):
@@ -132,7 +141,7 @@ async def kirim_gambar(event):
 @owner_only
 async def simpan_gambar(event):
     reply = await event.get_reply_message()
-    if reply.media:
+    if reply and reply.media:
         try:
             # Buat folder downloads jika tidak ada
             if not os.path.exists('downloads'):
@@ -163,7 +172,7 @@ async def ubah_nama_grup(event):
         await event.reply(f"✅ Nama grup berhasil diganti menjadi **{new_name}**")
     except Exception as e:
         error_msg = str(e)
-        if "wait" in error_msg:
+        if "wait" in error_msg.lower():
             await event.reply("⏰ Terlalu sering mengganti nama! Tunggu beberapa menit.")
         else:
             await event.reply(f"❌ Gagal ubah nama grup: {error_msg}")
@@ -175,16 +184,23 @@ async def ubah_nama_grup(event):
 @owner_only
 async def simpan_tw(event):
     reply = await event.get_reply_message()
-    data["tw"] = reply.id
-    save_data(data)
-    await event.reply("💾 Pesan ini sudah tersimpan untuk .tw")
+    if reply:
+        data["tw"] = reply.id
+        save_data(data)
+        await event.reply("💾 Pesan ini sudah tersimpan untuk .tw")
+    else:
+        await event.reply("⚠️ Balas pesan untuk disimpan.")
 
 @client.on(events.NewMessage(pattern=r"\.tw$"))
 @owner_only
 async def kirim_tw(event):
     if data.get("tw"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["tw"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer=await client.get_input_entity("me"),
+                id=[data["tw"]],
+                to_peer=event.chat_id
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .tw\nError: {e}")
     else:
@@ -197,16 +213,23 @@ async def kirim_tw(event):
 @owner_only
 async def simpan_c(event):
     reply = await event.get_reply_message()
-    data["c"] = reply.id
-    save_data(data)
-    await event.reply("💾 Pesan ini sudah tersimpan untuk .c")
+    if reply:
+        data["c"] = reply.id
+        save_data(data)
+        await event.reply("💾 Pesan ini sudah tersimpan untuk .c")
+    else:
+        await event.reply("⚠️ Balas pesan untuk disimpan.")
 
 @client.on(events.NewMessage(pattern=r"\.c$"))
 @owner_only
 async def kirim_c(event):
     if data.get("c"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["c"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer=await client.get_input_entity("me"),
+                id=[data["c"]],
+                to_peer=event.chat_id
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .c\nError: {e}")
     else:
@@ -219,16 +242,23 @@ async def kirim_c(event):
 @owner_only
 async def simpan_lagu(event):
     reply = await event.get_reply_message()
-    data["lagu"] = reply.id
-    save_data(data)
-    await event.reply("🎵 Lagu ini sudah tersimpan untuk .lagu")
+    if reply:
+        data["lagu"] = reply.id
+        save_data(data)
+        await event.reply("🎵 Lagu ini sudah tersimpan untuk .lagu")
+    else:
+        await event.reply("⚠️ Balas lagu untuk disimpan.")
 
 @client.on(events.NewMessage(pattern=r"\.lagu$"))
 @owner_only
 async def kirim_lagu(event):
     if data.get("lagu"):
         try:
-            await client(ForwardMessagesRequest(from_peer="me", id=[data["lagu"]], to_peer=event.chat_id))
+            await client(ForwardMessagesRequest(
+                from_peer=await client.get_input_entity("me"),
+                id=[data["lagu"]],
+                to_peer=event.chat_id
+            ))
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim lagu.\nError: {e}")
     else:
@@ -241,6 +271,10 @@ async def kirim_lagu(event):
 @owner_only
 async def share_to_all_groups(event):
     reply = await event.get_reply_message()
+    if not reply:
+        await event.reply("⚠️ Balas pesan untuk di-share.")
+        return
+        
     sent_count = 0
     async for dialog in client.iter_dialogs():
         if dialog.is_group:
@@ -248,8 +282,8 @@ async def share_to_all_groups(event):
                 await client.send_message(dialog.id, reply)
                 sent_count += 1
                 await asyncio.sleep(1)  # Delay untuk hindari spam
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to send to {dialog.name}: {e}")
     await event.reply(f"📢 Pesan berhasil dikirim ke {sent_count} grup!")
 
 # =========================
@@ -288,7 +322,11 @@ async def kirim_tersimpan(event):
         await event.reply(f"🗃️ Tidak ada pesan tersimpan untuk .{key}")
         return
     try:
-        await client(ForwardMessagesRequest(from_peer="me", id=[pesan_id], to_peer=event.chat_id))
+        await client(ForwardMessagesRequest(
+            from_peer=await client.get_input_entity("me"),
+            id=[pesan_id],
+            to_peer=event.chat_id
+        ))
     except Exception as e:
         await event.reply(f"⚠️ Gagal mengirim pesan .{key}\nError: {e}")
 
@@ -316,7 +354,7 @@ async def ganti_profil_grup(event):
                 if not getattr(participant.participant, 'admin_rights', None):
                     await event.reply("⚠️ Bot harus menjadi admin dengan hak ubah info untuk mengganti foto grup")
                     return
-            except:
+            except Exception as e:
                 await event.reply("⚠️ Bot harus menjadi admin dengan hak ubah info untuk mengganti foto grup")
                 return
 
@@ -326,7 +364,7 @@ async def ganti_profil_grup(event):
             await event.reply("✅ Profil grup berhasil diganti!")
         
         else:
-            # Untuk grup biasa - method alternatif
+            # Untuk grup biasa
             try:
                 uploaded_file = await client.upload_file(file_path)
                 result = await client(UploadProfilePhotoRequest(file=uploaded_file))
@@ -356,16 +394,14 @@ async def ganti_profil_grup(event):
 # =========================
 # KEEP ALIVE & START BOT
 # =========================
-start_time = time.time()
-
 async def keep_alive():
     while True:
         try:
             me = await client.get_me()
-            logger.info(f"Bot is alive - {me.first_name}")
+            logger.info(f"💚 Bot is alive - {me.first_name}")
             await asyncio.sleep(300)  # Check every 5 minutes
         except Exception as e:
-            logger.error(f"Keep alive error: {e}")
+            logger.error(f"❌ Keep alive error: {e}")
             await asyncio.sleep(60)
 
 async def main():
@@ -387,6 +423,7 @@ async def main():
         logger.info("🎉 Userbot started successfully on Railway!")
         logger.info("💚 Bot will stay online 24/7")
         
+        # Run bot
         await client.run_until_disconnected()
         
     except Exception as e:
@@ -395,4 +432,14 @@ async def main():
 
 if __name__ == '__main__':
     logger.info("🚀 Starting main function...")
-    client.loop.run_until_complete(main())
+    
+    # Pastikan menggunakan event loop yang benar
+    if os.name == 'nt':  # Windows
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    
+    try:
+        client.loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        logger.info("⏹️ Bot stopped by user")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
