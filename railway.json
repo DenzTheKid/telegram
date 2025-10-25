@@ -3,6 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python3 -m bot"
+    "startCommand": "python3 your_filename.py",
+    "restartPolicyType": "ON_FAILURE"
   }
 }
