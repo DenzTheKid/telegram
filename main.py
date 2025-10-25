@@ -40,12 +40,10 @@ from telethon.tl.types import Channel, InputChatUploadedPhoto
 import json, asyncio, time
 
 # =========================
-# IMPORT UNTUK FITUR .genqr
+# IMPORT UNTUK FITUR .genqr (FIXED)
 # =========================
 import qrcode
 from io import BytesIO
-from telethon.tl.functions.auth import ExportLoginTokenRequest
-from telethon.tl.types import AuthLoginToken
 
 logger.info("📦 Importing Telethon modules...")
 
@@ -806,7 +804,7 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .genqr (GENERATE QR CODE UNTUK AKUN BARU)
+# FITUR: .genqr (GENERATE QR CODE - FIXED VERSION)
 # =========================
 @client.on(events.NewMessage(pattern=r'\.genqr'))
 @owner_only
@@ -825,27 +823,41 @@ async def generate_qr_command(event):
         
         await temp_client.connect()
         
-        # Request login token
-        result = await temp_client(ExportLoginTokenRequest(
-            api_id=API_ID,
-            api_hash=API_HASH
-        ))
+        # Method manual untuk QR login yang kompatibel
+        try:
+            from telethon.tl.functions.auth import ExportLoginTokenRequest
+            
+            # Request login token
+            result = await temp_client(ExportLoginTokenRequest(
+                api_id=API_ID,
+                api_hash=API_HASH
+            ))
+            
+            # Cek jika result memiliki token
+            if hasattr(result, 'token'):
+                token = result.token
+            else:
+                await processing_msg.edit("❌ Versi Telethon tidak mendukung QR login.")
+                return
+                
+        except Exception as token_error:
+            await processing_msg.edit(f"❌ Gagal mendapatkan token: {token_error}")
+            return
         
-        if isinstance(result, AuthLoginToken):
-            # Generate QR code
-            qr_data = f"tg://login?token={result.token.decode()}"
-            qr = qrcode.QRCode(version=1, box_size=10, border=5)
-            qr.add_data(qr_data)
-            qr.make(fit=True)
-            
-            # Create image in memory
-            img_buffer = BytesIO()
-            img = qr.make_image(fill_color="black", back_color="white")
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            
-            # Kirim QR code sebagai photo
-            caption = """
+        # Generate QR code
+        qr_data = f"tg://login?token={token.decode()}"
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+        
+        # Create image in memory
+        img_buffer = BytesIO()
+        img = qr.make_image(fill_color="black", back_color="white")
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        
+        # Kirim QR code sebagai photo
+        caption = """
 📱 **SCAN QR CODE INI**
 
 **Cara Scan:**
@@ -856,29 +868,39 @@ async def generate_qr_command(event):
 
 ⏳ QR code berlaku 10-15 menit
 🔒 Aman untuk akun Anda
-            """
+        """
+        
+        await processing_msg.delete()
+        sent_qr = await client.send_file(
+            event.chat_id,
+            img_buffer,
+            caption=caption,
+            force_document=False
+        )
+        
+        # Tunggu user scan dan login (timeout 2 menit)
+        await event.reply("⏳ **Menunggu scan...** Silakan scan QR code di atas dengan Telegram di HP Anda.")
+        
+        try:
+            # Tunggu login dengan polling
+            for i in range(12):  # 2 menit dengan interval 10 detik
+                await asyncio.sleep(10)
+                try:
+                    # Coba dapatkan info user
+                    me = await temp_client.get_me()
+                    if me:
+                        break
+                except:
+                    if i == 11:  # Timeout setelah 2 menit
+                        raise asyncio.TimeoutError()
+                    continue
             
-            await processing_msg.delete()
-            sent_qr = await client.send_file(
-                event.chat_id,
-                img_buffer,
-                caption=caption,
-                force_document=False
-            )
+            # Dapatkan session string setelah login berhasil
+            session_string = temp_client.session.save()
+            me = await temp_client.get_me()
             
-            # Tunggu user scan dan login (timeout 2 menit)
-            await asyncio.sleep(10)  # Kasih waktu untuk scan
-            
-            try:
-                # Coba connect dengan timeout
-                await asyncio.wait_for(temp_client.start(), timeout=120)
-                
-                # Dapatkan session string setelah login berhasil
-                session_string = temp_client.session.save()
-                me = await temp_client.get_me()
-                
-                # Kirim session string ke private chat (aman)
-                success_msg = f"""
+            # Kirim session string ke private chat (aman)
+            success_msg = f"""
 ✅ **LOGIN BERHASIL!**
 
 👤 **Account:** {me.first_name}
@@ -890,22 +912,19 @@ async def generate_qr_command(event):
 
 💡 **Simpan string ini untuk ditambahkan ke environment variables**
 📝 **Contoh:** SESSION_2={session_string}
-                """
-                
-                await client.send_message('me', success_msg)
-                await event.reply("✅ Login berhasil! Cek **Saved Messages** untuk session string.")
-                
-                # Hapus QR code dari chat untuk keamanan
-                await asyncio.sleep(10)
-                await sent_qr.delete()
-                
-            except asyncio.TimeoutError:
-                await event.reply("❌ Waktu habis! QR code expired. Gunakan `.genqr` lagi untuk generate baru.")
-            except Exception as login_error:
-                await event.reply(f"❌ Gagal login: {login_error}")
-                
-        else:
-            await processing_msg.edit("❌ Gagal generate QR code. Coba lagi.")
+            """
+            
+            await client.send_message('me', success_msg)
+            await event.reply("✅ Login berhasil! Cek **Saved Messages** untuk session string.")
+            
+            # Hapus QR code dari chat untuk keamanan
+            await asyncio.sleep(5)
+            await sent_qr.delete()
+            
+        except asyncio.TimeoutError:
+            await event.reply("❌ Waktu habis! QR code expired. Gunakan `.genqr` lagi untuk generate baru.")
+        except Exception as login_error:
+            await event.reply(f"❌ Gagal login: {login_error}")
             
     except Exception as e:
         await processing_msg.edit(f"❌ Error: {str(e)}")
