@@ -39,6 +39,14 @@ from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, G
 from telethon.tl.types import Channel, InputChatUploadedPhoto
 import json, asyncio, time
 
+# =========================
+# IMPORT UNTUK FITUR .genqr
+# =========================
+import qrcode
+from io import BytesIO
+from telethon.tl.functions.auth import ExportLoginTokenRequest
+from telethon.tl.types import AuthLoginToken
+
 logger.info("📦 Importing Telethon modules...")
 
 # Initialize client dengan session string
@@ -798,6 +806,116 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
+# FITUR: .genqr (GENERATE QR CODE UNTUK AKUN BARU)
+# =========================
+@client.on(events.NewMessage(pattern=r'\.genqr'))
+@owner_only
+async def generate_qr_command(event):
+    """Generate QR code untuk login akun baru"""
+    
+    processing_msg = await event.reply("🔄 Generating QR code...")
+    
+    try:
+        # Buat client temporary untuk generate QR
+        temp_client = TelegramClient(
+            StringSession(), 
+            API_ID, 
+            API_HASH
+        )
+        
+        await temp_client.connect()
+        
+        # Request login token
+        result = await temp_client(ExportLoginTokenRequest(
+            api_id=API_ID,
+            api_hash=API_HASH
+        ))
+        
+        if isinstance(result, AuthLoginToken):
+            # Generate QR code
+            qr_data = f"tg://login?token={result.token.decode()}"
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(qr_data)
+            qr.make(fit=True)
+            
+            # Create image in memory
+            img_buffer = BytesIO()
+            img = qr.make_image(fill_color="black", back_color="white")
+            img.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            
+            # Kirim QR code sebagai photo
+            caption = """
+📱 **SCAN QR CODE INI**
+
+**Cara Scan:**
+1. Buka Telegram di HP
+2. Pergi ke **Settings > Devices > Link Desktop Device**  
+3. Scan QR code ini
+4. Tunggu sampai berhasil login
+
+⏳ QR code berlaku 10-15 menit
+🔒 Aman untuk akun Anda
+            """
+            
+            await processing_msg.delete()
+            sent_qr = await client.send_file(
+                event.chat_id,
+                img_buffer,
+                caption=caption,
+                force_document=False
+            )
+            
+            # Tunggu user scan dan login (timeout 2 menit)
+            await asyncio.sleep(10)  # Kasih waktu untuk scan
+            
+            try:
+                # Coba connect dengan timeout
+                await asyncio.wait_for(temp_client.start(), timeout=120)
+                
+                # Dapatkan session string setelah login berhasil
+                session_string = temp_client.session.save()
+                me = await temp_client.get_me()
+                
+                # Kirim session string ke private chat (aman)
+                success_msg = f"""
+✅ **LOGIN BERHASIL!**
+
+👤 **Account:** {me.first_name}
+📞 **Phone:** {me.phone}  
+🆔 **User ID:** {me.id}
+
+🔐 **SESSION STRING:**
+```{session_string}```
+
+💡 **Simpan string ini untuk ditambahkan ke environment variables**
+📝 **Contoh:** SESSION_2={session_string}
+                """
+                
+                await client.send_message('me', success_msg)
+                await event.reply("✅ Login berhasil! Cek **Saved Messages** untuk session string.")
+                
+                # Hapus QR code dari chat untuk keamanan
+                await asyncio.sleep(10)
+                await sent_qr.delete()
+                
+            except asyncio.TimeoutError:
+                await event.reply("❌ Waktu habis! QR code expired. Gunakan `.genqr` lagi untuk generate baru.")
+            except Exception as login_error:
+                await event.reply(f"❌ Gagal login: {login_error}")
+                
+        else:
+            await processing_msg.edit("❌ Gagal generate QR code. Coba lagi.")
+            
+    except Exception as e:
+        await processing_msg.edit(f"❌ Error: {str(e)}")
+    finally:
+        try:
+            await temp_client.disconnect()
+        except:
+            pass
+
+# =========================
 # FITUR: .fitur
 # =========================
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
@@ -829,6 +947,9 @@ async def fitur_list(event):
 👥 **Manajemen Grup**
 • `.u <nama>` — Ubah nama grup langsung
 • `.sharegrup` (reply pesan) — Broadcast ke semua grup
+
+🔐 **Multi-Account**
+• `.genqr` — Generate QR code untuk tambah akun baru
 
 ℹ️ **Info & Status**
 • `.status` — Lihat status server
@@ -868,6 +989,9 @@ async def help_handler(event):
 • `.dl <judul>` - Download song (alternatives)
 • `.get <judul>` - Search & download options
 • `.yt <link>` - Download from YouTube link
+
+🔐 **Multi-Account:**
+• `.genqr` - Generate QR code untuk tambah akun baru
 """
     await event.reply(help_text)
 
