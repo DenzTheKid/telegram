@@ -16,16 +16,18 @@ print("🟢 PRINT: Bot starting...", flush=True)
 
 try:
     # Test environment variables
-    API_ID = os.getenv('API_ID')
-    API_HASH = os.getenv('API_HASH')
+    API_ID = os.getenv('API_ID', '27037133')  # Default value dari kamu
+    API_HASH = os.getenv('API_HASH', '0698732c74d471bca5b7fbba076c52b7')  # Default value dari kamu
+    SESSION_STRING = os.getenv('SESSION_STRING')
     SESSION_NAME = os.getenv('SESSION_NAME', 'userbot')
     
     logger.info(f"🔧 API_ID: {API_ID}")
     logger.info(f"🔧 API_HASH: {API_HASH}")
+    logger.info(f"🔧 SESSION_STRING: {'***' + SESSION_STRING[-10:] if SESSION_STRING else 'NOT SET'}")
     logger.info(f"🔧 SESSION_NAME: {SESSION_NAME}")
     
-    if not API_ID or not API_HASH:
-        logger.error("❌ MISSING ENVIRONMENT VARIABLES")
+    if not SESSION_STRING and (not API_ID or not API_HASH):
+        logger.error("❌ MISSING ENVIRONMENT VARIABLES: Butuh SESSION_STRING atau API_ID & API_HASH")
         sys.exit(1)
         
     # Convert API_ID to integer
@@ -40,6 +42,7 @@ except Exception as e:
 # KODE USERBOT ASLI
 # =========================
 from telethon import TelegramClient, events, functions
+from telethon.sessions import StringSession
 from telethon.tl.functions.messages import ForwardMessagesRequest, EditChatTitleRequest
 from telethon.tl.functions.channels import EditTitleRequest, EditPhotoRequest, GetParticipantRequest
 from telethon.tl.types import Channel, InputChatUploadedPhoto, InputPhoto
@@ -48,7 +51,14 @@ import json, asyncio, time
 
 logger.info("📦 Importing Telethon modules...")
 
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+# Initialize client dengan session string atau session file
+if SESSION_STRING:
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    logger.info("✅ Telegram client initialized with SESSION STRING")
+else:
+    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    logger.info("✅ Telegram client initialized with SESSION FILE")
+
 DATA_FILE = "userbot_data.json"
 
 # =========================
@@ -78,9 +88,23 @@ async def init_owner():
     try:
         me = await client.get_me()
         OWNER_ID = me.id
-        logger.info(f"Bot started for user: {me.first_name} (ID: {me.id})")
+        logger.info(f"✅ Bot started for user: {me.first_name} (ID: {me.id})")
+        
+        # Kirim pesan start ke saved messages
+        try:
+            await client.send_message('me', f"🤖 **Bot Started Successfully!**\n\n"
+                                          f"• **Platform**: Railway\n"
+                                          f"• **Time**: {time.ctime()}\n"
+                                          f"• **User**: {me.first_name}\n"
+                                          f"• **ID**: {me.id}\n"
+                                          f"• **Mode**: {'SESSION STRING' if SESSION_STRING else 'SESSION FILE'}")
+            logger.info("✅ Startup message sent to saved messages")
+        except Exception as msg_error:
+            logger.warning(f"⚠️ Could not send startup message: {msg_error}")
+            
     except Exception as e:
-        logger.error(f"Failed to initialize owner: {e}")
+        logger.error(f"❌ Failed to initialize owner: {e}")
+        raise
 
 def owner_only(func):
     async def wrapper(event):
@@ -100,15 +124,19 @@ def owner_only(func):
 @owner_only
 async def server_status(event):
     try:
+        me = await client.get_me()
         status_text = f"""
 🖥 **USERBOT STATUS**
 • **Platform**: Railway
 • **Python**: {sys.version.split()[0]}
 • **Uptime**: {time.time() - start_time:.0f} detik
+• **Mode**: {'SESSION STRING' if SESSION_STRING else 'SESSION FILE'}
 
 ✅ **Bot is running on Railway**
 📊 **Data tersimpan**: {len([v for v in data.values() if v])} items
-👤 **Owner ID**: {OWNER_ID}
+👤 **User**: {me.first_name}
+🆔 **User ID**: {me.id}
+💾 **Session**: {SESSION_NAME}
 """
         await event.reply(status_text)
     except Exception as e:
@@ -123,10 +151,11 @@ async def kirim_gambar(event):
     if data.get("p"):
         try:
             await client.send_file(event.chat_id, data["p"])
+            await event.reply("✅ Gambar terkirim!")
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim gambar.\nError: {e}")
     else:
-        await event.reply("📸 Kamu Belum Menyetting Gambar.")
+        await event.reply("📸 Kamu Belum Menyetting Gambar.\n\nBalas gambar dengan `.p` untuk menyimpan.")
 
 @client.on(events.NewMessage(pattern=r"\.p$", func=lambda e: e.is_reply))
 @owner_only
@@ -193,10 +222,11 @@ async def kirim_tw(event):
                 to_peer=event.chat_id,
                 drop_author=True
             ))
+            await event.reply("✅ Pesan .tw terkirim!")
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .tw\nError: {e}")
     else:
-        await event.reply("🗃️ Tag .tw belum tersimpan di database.")
+        await event.reply("🗃️ Tag .tw belum tersimpan di database.\n\nBalas pesan dengan `.tw` untuk menyimpan.")
 
 # =========================
 # FITUR: .c
@@ -223,10 +253,11 @@ async def kirim_c(event):
                 to_peer=event.chat_id,
                 drop_author=True
             ))
+            await event.reply("✅ Pesan .c terkirim!")
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim pesan .c\nError: {e}")
     else:
-        await event.reply("🗃️ Tag .c belum tersimpan di database.")
+        await event.reply("🗃️ Tag .c belum tersimpan di database.\n\nBalas pesan dengan `.c` untuk menyimpan.")
 
 # =========================
 # FITUR: .lagu
@@ -253,10 +284,11 @@ async def kirim_lagu(event):
                 to_peer=event.chat_id,
                 drop_author=True
             ))
+            await event.reply("✅ Lagu terkirim!")
         except Exception as e:
             await event.reply(f"⚠️ Gagal mengirim lagu.\nError: {e}")
     else:
-        await event.reply("🗃️ Tag .lagu belum tersimpan di database.")
+        await event.reply("🗃️ Tag .lagu belum tersimpan di database.\n\nBalas lagu dengan `.lagu` untuk menyimpan.")
 
 # =========================
 # FITUR: .sharegrup
@@ -271,16 +303,20 @@ async def share_to_all_groups(event):
         
     sent_count = 0
     error_count = 0
+    processing_msg = await event.reply("🔄 Memproses broadcast ke semua grup...")
+    
     async for dialog in client.iter_dialogs():
         if dialog.is_group:
             try:
                 await client.send_message(dialog.id, reply)
                 sent_count += 1
-                await asyncio.sleep(1)  # Delay untuk hindari spam
+                await asyncio.sleep(2)  # Delay untuk hindari spam
             except Exception as e:
                 error_count += 1
                 logger.error(f"Gagal kirim ke {dialog.name}: {e}")
-    await event.reply(f"📢 Pesan berhasil dikirim ke {sent_count} grup! Gagal: {error_count}")
+    
+    await processing_msg.delete()
+    await event.reply(f"📢 **Broadcast Complete!**\n✅ Berhasil: {sent_count} grup\n❌ Gagal: {error_count} grup")
 
 # =========================
 # FITUR: .fitur
@@ -288,21 +324,31 @@ async def share_to_all_groups(event):
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
 async def fitur_list(event):
     fitur_text = """
-🤖 Daftar Fitur Userbot:
+🤖 **Daftar Fitur Userbot:**
+
+📸 **Gambar & Media**
 • `.p` — Kirim gambar tersimpan
-• `.p` (reply gambar) — Simpan / ubah gambar
-• `.u <nama>` — Ubah nama grup langsung
+• `.p` (reply gambar) — Simpan/ubah gambar
+• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
+
+💬 **Pesan Tersimpan**
 • `.tw` — Kirim pesan tersimpan
 • `.tw` (reply pesan) — Simpan pesan .tw
-• `.c` — Kirim pesan tersimpan
+• `.c` — Kirim pesan tersimpan  
 • `.c` (reply pesan) — Simpan pesan .c
 • `.lagu` — Kirim lagu tersimpan
 • `.lagu` (reply lagu) — Simpan lagu
-• `.sharegrup` (reply pesan) — Broadcast ke semua grup
 • `.r <key>` — Kirim pesan tersimpan (key: p, tw, c, lagu)
-• `.ppgb` — Ganti foto profil grup sesuai gambar di .p
+
+👥 **Manajemen Grup**
+• `.u <nama>` — Ubah nama grup langsung
+• `.sharegrup` (reply pesan) — Broadcast ke semua grup
+
+ℹ️ **Info & Status**
 • `.status` — Lihat status server
 • `.fitur` — Lihat semua fitur bot
+
+🔐 **Hanya untuk owner bot**
 """
     await event.reply(fitur_text)
 
@@ -324,6 +370,7 @@ async def kirim_tersimpan(event):
             to_peer=event.chat_id,
             drop_author=True
         ))
+        await event.reply(f"✅ Pesan .{key} terkirim!")
     except Exception as e:
         await event.reply(f"⚠️ Gagal mengirim pesan .{key}\nError: {e}")
 
@@ -334,7 +381,7 @@ async def kirim_tersimpan(event):
 @owner_only
 async def ganti_profil_grup(event):
     if not data.get("p"):
-        await event.reply("📸 Gambar profil grup belum disimpan di .p")
+        await event.reply("📸 Gambar profil grup belum disimpan di .p\n\nGunakan `.p` (reply gambar) dulu untuk menyimpan gambar.")
         return
     
     try:
@@ -380,7 +427,7 @@ async def keep_alive():
     while True:
         try:
             me = await client.get_me()
-            logger.info(f"Bot is alive - {me.first_name}")
+            logger.info(f"💚 Bot is alive - {me.first_name}")
             await asyncio.sleep(300)  # Check every 5 minutes
         except Exception as e:
             logger.error(f"Keep alive error: {e}")
@@ -404,6 +451,7 @@ async def main():
         
         logger.info("🎉 Userbot started successfully on Railway!")
         logger.info("💚 Bot will stay online 24/7")
+        logger.info("📡 Waiting for messages...")
         
         await client.run_until_disconnected()
         
