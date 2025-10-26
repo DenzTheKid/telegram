@@ -59,11 +59,6 @@ except Exception as e:
 DATA_FILE = "userbot_data.json"
 
 # =========================
-# VARIABEL UNTUK STOP SHARE PM
-# =========================
-stop_share_pm = False  # Flag untuk menghentikan broadcast PM
-
-# =========================
 # DATABASE SEDERHANA
 # =========================
 def load_data():
@@ -120,159 +115,24 @@ def owner_only(func):
     return wrapper
 
 # =========================
-# TAMBAHKAN KODE .rekap DI SINI ↓
-# =========================
-@client.on(events.NewMessage(pattern=r"\.rekap(?:\s+([\d.]+))?$"))
-@owner_only
-async def calculate_fee(event):
-    """Menghitung fee berdasarkan persentase yang diberikan"""
-    try:
-        # Default persentase 5.5% jika tidak diberikan
-        persen_input = event.pattern_match.group(1)
-        if persen_input:
-            try:
-                persentase = float(persen_input)
-                if persentase <= 0 or persentase >= 100:
-                    await event.reply("❌ Persentase harus antara 0.1 sampai 99.9")
-                    return
-            except ValueError:
-                await event.reply("❌ Format persentase salah! Contoh: `.rekap 5.5`")
-                return
-        else:
-            persentase = 5.5  # Default 5.5%
-
-        processing_msg = await event.reply(f"🔄 Menghitung fee dengan {persentase}%...")
-
-        # DATA AWAL - BISA DIUBAH SESUKA HATI!
-        data_B = {
-            "EL": {"nominal": 10, "type": "P"},
-            "COLI": {"nominal": 40, "type": "P"},
-            "EDI": {"nominal": 18, "type": "P"},
-            "TONI": {"nominal": 18, "type": "P"},
-            "DZ": {"nominal": 20, "type": "P"},
-            "MADA": {"nominal": 12, "type": "P"},
-            "YANZ": {"nominal": 15, "type": ""},
-            "TAT": {"nominal": 50, "type": ""},
-            "FERX": {"nominal": 120, "type": "P"},
-            "DUNZ": {"nominal": 5, "type": "P"},
-            "RAUL": {"nominal": 40, "type": "P"}
-        }
-
-        data_K = {
-            "VIS": {"nominal": 78, "type": "P"},
-            "REZA": {"nominal": 125, "type": "P"},
-            "SAS": {"nominal": 4, "type": "P"},
-            "KRISNA": {"nominal": 50, "type": "P"},
-            "PEMULA": {"nominal": 15, "type": "P"},
-            "TRUTA": {"nominal": 31, "type": "P"},
-            "HAHA": {"nominal": 5, "type": ""},
-            "IYAN": {"nominal": 10, "type": "P"},
-            "MAL": {"nominal": 30, "type": "P"}
-        }
-
-        def hitung_fee(nominal, tipe, persen):
-            if tipe == "P" or tipe == "LF":
-                fee = nominal - (nominal * persen / 100)
-                return round(fee)
-            else:
-                fee = nominal * (persen * 2 / 100)
-                return round(fee)
-
-        # Proses perhitungan untuk Tim B
-        hasil_B = []
-        total_fee_B = 0
-        
-        for nama, data in data_B.items():
-            nominal = data["nominal"]
-            tipe = data["type"]
-            hasil = hitung_fee(nominal, tipe, persentase)
-            hasil_B.append((nama, nominal, hasil, tipe))
-            total_fee_B += hasil
-
-        # Proses perhitungan untuk Tim K
-        hasil_K = []
-        total_fee_K = 0
-        
-        for nama, data in data_K.items():
-            nominal = data["nominal"]
-            tipe = data["type"]
-            hasil = hitung_fee(nominal, tipe, persentase)
-            hasil_K.append((nama, nominal, hasil, tipe))
-            total_fee_K += hasil
-
-        # Format output
-        output = f"📊 **REKAP FEE - {persentase}%**\n\n"
-        
-        # Bagian B
-        output += "**B:**\n"
-        for nama, nominal, hasil, tipe in hasil_B:
-            type_indicator = "p" if tipe == "P" or tipe == "LF" else " "
-            output += f"{nama} {nominal} // {hasil} {type_indicator}\n"
-        
-        output += "\n**K:**\n"
-        for nama, nominal, hasil, tipe in hasil_K:
-            type_indicator = "p" if tipe == "P" or tipe == "LF" else " "
-            output += f"{nama} {nominal} // {hasil} {type_indicator}\n"
-        
-        # Total fee
-        output += f"\n🎉 **Total fee yang Anda dapat dari B adalah: {total_fee_B} selamat!** 🎉\n"
-        output += f"🎉 **Total fee yang Anda dapat dari K adalah: {total_fee_K} selamat!** 🎉\n\n"
-        
-        output += f"💡 **Keterangan:**\n"
-        output += f"• **P/LF**: nominal - {persentase}%\n"
-        output += f"• **Tanpa P/LF**: nominal × {persentase * 2}%\n"
-        output += "━━━━━━━━━━━━━━━━━━\n"
-        output += "🤖 Bot by denz | @denzwel1"
-
-        await processing_msg.edit(output)
-
-    except Exception as e:
-        await event.reply(f"❌ Error menghitung fee: {str(e)}")
-
-@client.on(events.NewMessage(pattern=r"\.setrekap$"))
-@owner_only
-async def set_rekap_data(event):
-    """Petunjuk untuk mengubah data rekap"""
-    help_text = """
-📝 **CARA MENGUBAH DATA REKAP:**
-
-Edit dictionary `data_B` dan `data_K` di fungsi `calculate_fee`:
-
-**Format:**
-```python
-"NAMA": {"nominal": 100, "type": "P"}   # Dengan P
-"NAMA": {"nominal": 100, "type": "LF"}  # Dengan LF  
-"NAMA": {"nominal": 100, "type": ""}    # Tanpa P/LF
-
-# =========================
 # FITUR BARU: .sharepm - BROADCAST KE SEMUA PRIVATE CHAT
 # =========================
 @client.on(events.NewMessage(pattern=r"\.sharepm$", func=lambda e: e.is_reply))
 @owner_only
 async def share_to_all_private_chats(event):
-    # Broadcast pesan ke semua chat private/personal
-    global stop_share_pm
-    
-    # Reset stop flag
-    stop_share_pm = False
-    
+    """Broadcast pesan ke semua chat private/personal"""
     reply = await event.get_reply_message()
     if not reply:
         await event.reply("⚠️ Balas pesan yang ingin di-share ke semua private chat.")
         return
         
-    processing_msg = await event.reply("🔄 Memproses broadcast ke semua private chat...\n\n⏹️ **Gunakan `.stopsharepm` untuk menghentikan broadcast**")
+    processing_msg = await event.reply("🔄 Memproses broadcast ke semua private chat...")
     
     sent_count = 0
     error_count = 0
     skipped_count = 0
     
     async for dialog in client.iter_dialogs():
-        # Cek jika stop flag diaktifkan
-        if stop_share_pm:
-            await processing_msg.edit(f"🛑 **BROADCAST DIHENTIKAN!**\n\n📊 **Progress Sebelum Berhenti:**\n✅ Berhasil: {sent_count}\n❌ Gagal: {error_count}\n⏭️ Dilewati: {skipped_count}")
-            return
-            
         try:
             # Hanya kirim ke chat personal/private (bukan grup/channel)
             if dialog.is_user and not dialog.entity.bot:  # Skip bot
@@ -283,7 +143,7 @@ async def share_to_all_private_chats(event):
                     
                     # Update progress setiap 5 pesan
                     if sent_count % 5 == 0:
-                        await processing_msg.edit(f"🔄 Mengirim ke private chat...\n\n⏹️ **Gunakan `.stopsharepm` untuk menghentikan**\n\n✅ Berhasil: {sent_count}\n❌ Gagal: {error_count}\n⏭️ Dilewati: {skipped_count}")
+                        await processing_msg.edit(f"🔄 Mengirim ke private chat...\n✅ Berhasil: {sent_count}\n❌ Gagal: {error_count}\n⏭️ Dilewati: {skipped_count}")
                         
                 except Exception as e:
                     error_count += 1
@@ -315,24 +175,6 @@ async def share_to_all_private_chats(event):
     
     # Kirim juga laporan ke saved messages
     await client.send_message('me', f"📨 Broadcast PM selesai:\nBerhasil: {sent_count}\nGagal: {error_count}\nDilewati: {skipped_count}")
-
-# =========================
-# FITUR BARU: .stopsharepm - UNTUK MENGENTIKAN BROADCAST PM
-# =========================
-@client.on(events.NewMessage(pattern=r"\.stopsharepm$"))
-@owner_only
-async def stop_share_pm_command(event):
-    """Menghentikan broadcast PM yang sedang berjalan"""
-    global stop_share_pm
-    
-    if stop_share_pm:
-        await event.reply("⚠️ Tidak ada broadcast PM yang sedang berjalan.")
-        return
-        
-    stop_share_pm = True
-    await event.reply("🛑 **Perintah berhenti diterima!**\n\nBroadcast PM akan dihentikan setelah pesan saat ini selesai dikirim.")
-    
-    logger.info("🛑 Stop share PM command received")
 
 # =========================
 # FITUR: NOTIFIKASI BOT DITAMBAHKAN KE GRUP (IMPROVED VERSION)
@@ -576,7 +418,6 @@ async def server_status(event):
 🆔 **User ID**: {me.id}
 
 🔔 **Notifikasi**: {'✅ AKTIF' if hasattr(client, '_chat_action_handler') else '❌ TIDAK AKTIF'}
-📨 **Broadcast Status**: {'🛑 STOPPED' if stop_share_pm else '✅ READY'}
 """
         await event.reply(status_text)
     except Exception as e:
@@ -1052,9 +893,6 @@ async def debug_info(event):
 **File Info:**
 • **Saved Image**: {data.get('p', 'None')}
 • **File Exists**: {os.path.exists(data.get('p', '')) if data.get('p') else 'No file'}
-
-**Broadcast Status:**
-• **Stop Share PM Flag**: {stop_share_pm}
 """
         msg = await event.reply(debug_text)
         
@@ -1337,7 +1175,7 @@ async def get_song(event):
         await event.reply(f"❌ Error: {str(e)}")
 
 # =========================
-# FITUR: .fitur (UPDATED DENGAN .stopsharepm)
+# FITUR: .fitur (UPDATED DENGAN .sharepm)
 # =========================
 @client.on(events.NewMessage(pattern=r"\.fitur$"))
 async def fitur_list(event):
@@ -1369,7 +1207,6 @@ async def fitur_list(event):
 • `.u <nama>` — Ubah nama grup langsung
 • `.sharegrup` (reply pesan) — Broadcast ke semua grup
 • `.sharepm` (reply pesan) — Broadcast ke semua private chat
-• `.stopsharepm` — Hentikan broadcast PM yang sedang berjalan
 • `.grpinfo` — Info grup saat ini
 • `.listgrp` — List semua grup yang diikuti
 • `.checkgroups` — Manual check semua grup
@@ -1434,7 +1271,6 @@ async def help_handler(event):
 • `.checkadmin` - Check admin rights
 • `.sharegrup` - Broadcast to all groups
 • `.sharepm` - Broadcast to all private chats
-• `.stopsharepm` - Stop ongoing PM broadcast
 • `.testnotif` - Test notification system
 • **Auto-Notification** - Get notified when bot is added to new groups
 """
@@ -1493,5 +1329,3 @@ if __name__ == '__main__':
         logger.error(f"❌ Fatal error: {e}")
     finally:
         logger.info("🔴 Bot stopped")
-
-
