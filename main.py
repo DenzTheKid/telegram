@@ -120,6 +120,142 @@ def owner_only(func):
     return wrapper
 
 # =========================
+# FITUR BARU: .rekap - UNTUK MENGHITUNG FEE OTOMATIS
+# =========================
+@client.on(events.NewMessage(pattern=r"\.rekap(?:\s+([\d.]+))?$"))
+@owner_only
+async def calculate_fee(event):
+    """Menghitung fee berdasarkan persentase yang diberikan"""
+    try:
+        # Default persentase 5.5% jika tidak diberikan
+        persen_input = event.pattern_match.group(1)
+        if persen_input:
+            try:
+                persentase = float(persen_input)
+                if persentase <= 0 or persentase >= 100:
+                    await event.reply("❌ Persentase harus antara 0.1 sampai 99.9")
+                    return
+            except ValueError:
+                await event.reply("❌ Format persentase salah! Contoh: `.rekap 5.5`")
+                return
+        else:
+            persentase = 5.5  # Default 5.5%
+
+        processing_msg = await event.reply(f"🔄 Menghitung fee dengan {persentase}%...")
+
+        # DATA AWAL - BISA DIUBAH SESUKA HATI!
+        # Type: "P" atau "LF" = sama artinya, "" = tanpa P/LF
+        data_B = {  # TIM B
+            "EL": {"nominal": 10, "type": "P"},
+            "COLI": {"nominal": 40, "type": "P"},
+            "EDI": {"nominal": 18, "type": "P"},
+            "TONI": {"nominal": 18, "type": "P"},
+            "DZ": {"nominal": 20, "type": "P"},
+            "MADA": {"nominal": 12, "type": "P"},
+            "YANZ": {"nominal": 15, "type": ""},
+            "TAT": {"nominal": 50, "type": ""},
+            "FERX": {"nominal": 120, "type": "P"},
+            "DUNZ": {"nominal": 5, "type": "P"},
+            "RAUL": {"nominal": 40, "type": "P"}
+        }
+
+        data_K = {  # TIM K
+            "VIS": {"nominal": 78, "type": "P"},
+            "REZA": {"nominal": 125, "type": "P"},
+            "SAS": {"nominal": 4, "type": "P"},
+            "KRISNA": {"nominal": 50, "type": "P"},
+            "PEMULA": {"nominal": 15, "type": "P"},
+            "TRUTA": {"nominal": 31, "type": "P"},
+            "HAHA": {"nominal": 5, "type": ""},
+            "IYAN": {"nominal": 10, "type": "P"},
+            "MAL": {"nominal": 30, "type": "P"}
+        }
+
+        # Fungsi untuk menghitung hasil
+        def hitung_fee(nominal, tipe, persen):
+            if tipe == "P" or tipe == "LF":  # Ada tulisan P atau LF
+                # nominal - persen%
+                fee = nominal - (nominal * persen / 100)
+                return round(fee)
+            else:  # Tidak ada P/LF
+                # nominal × (persentase × 2)%
+                fee = nominal * (persen * 2 / 100)
+                return round(fee)
+
+        # Proses perhitungan untuk Tim B
+        hasil_B = []
+        total_fee_B = 0
+        
+        for nama, data in data_B.items():
+            nominal = data["nominal"]
+            tipe = data["type"]
+            hasil = hitung_fee(nominal, tipe, persentase)
+            hasil_B.append((nama, nominal, hasil, tipe))
+            # SEMUA MASUK TOTAL FEE (baik yang P/LF maupun tanpa P/LF)
+            total_fee_B += hasil
+
+        # Proses perhitungan untuk Tim K
+        hasil_K = []
+        total_fee_K = 0
+        
+        for nama, data in data_K.items():
+            nominal = data["nominal"]
+            tipe = data["type"]
+            hasil = hitung_fee(nominal, tipe, persentase)
+            hasil_K.append((nama, nominal, hasil, tipe))
+            # SEMUA MASUK TOTAL FEE (baik yang P/LF maupun tanpa P/LF)
+            total_fee_K += hasil
+
+        # Format output
+        output = f"📊 **REKAP FEE - {persentase}%**\n\n"
+        
+        # Bagian B
+        output += "**B:**\n"
+        for nama, nominal, hasil, tipe in hasil_B:
+            type_indicator = "p" if tipe == "P" or tipe == "LF" else " "
+            output += f"{nama} {nominal} // {hasil} {type_indicator}\n"
+        
+        output += "\n**K:**\n"
+        for nama, nominal, hasil, tipe in hasil_K:
+            type_indicator = "p" if tipe == "P" or tipe == "LF" else " "
+            output += f"{nama} {nominal} // {hasil} {type_indicator}\n"
+        
+        # Total fee
+        output += f"\n🎉 **Total fee yang Anda dapat dari B adalah: {total_fee_B} selamat!** 🎉\n"
+        output += f"🎉 **Total fee yang Anda dapat dari K adalah: {total_fee_K} selamat!** 🎉\n\n"
+        
+        output += f"💡 **Keterangan:**\n"
+        output += f"• **P/LF**: nominal - {persentase}%\n"
+        output += f"• **Tanpa P/LF**: nominal × {persentase * 2}%\n"
+        output += "━━━━━━━━━━━━━━━━━━\n"
+        output += "🤖 Bot by denz | @denzwel1"
+
+        await processing_msg.edit(output)
+
+    except Exception as e:
+        await event.reply(f"❌ Error menghitung fee: {str(e)}")
+
+# =========================
+# FITUR BARU: .setrekap - UNTUK MENGUBAH DATA REKAP
+# =========================
+@client.on(events.NewMessage(pattern=r"\.setrekap$"))
+@owner_only
+async def set_rekap_data(event):
+    """Petunjuk untuk mengubah data rekap"""
+    help_text = """
+📝 **CARA MENGUBAH DATA REKAP:**
+
+Untuk mengubah data rekap, Anda perlu mengedit langsung di kode bot:
+
+1. **Cari fungsi `calculate_fee`** di kode
+2. **Edit dictionary `data_B` dan `data_K`**
+3. **Format data:**
+   ```python
+   "NAMA": {"nominal": 100, "type": "P"}   # Dengan P
+   "NAMA": {"nominal": 100, "type": "LF"}  # Dengan LF  
+   "NAMA": {"nominal": 100, "type": ""}    # Tanpa P/LF
+
+# =========================
 # FITUR BARU: .sharepm - BROADCAST KE SEMUA PRIVATE CHAT
 # =========================
 @client.on(events.NewMessage(pattern=r"\.sharepm$", func=lambda e: e.is_reply))
@@ -1368,3 +1504,4 @@ if __name__ == '__main__':
         logger.error(f"❌ Fatal error: {e}")
     finally:
         logger.info("🔴 Bot stopped")
+
