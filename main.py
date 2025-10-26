@@ -250,7 +250,7 @@ Edit dictionary `data_B` dan `data_K` di fungsi `calculate_fee`:
 @client.on(events.NewMessage(pattern=r"\.sharepm$", func=lambda e: e.is_reply))
 @owner_only
 async def share_to_all_private_chats(event):
-    """Broadcast pesan ke semua chat private/personal"""
+    # Broadcast pesan ke semua chat private/personal
     global stop_share_pm
     
     # Reset stop flag
@@ -1493,3 +1493,4 @@ if __name__ == '__main__':
         logger.error(f"❌ Fatal error: {e}")
     finally:
         logger.info("🔴 Bot stopped")
+
