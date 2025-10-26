@@ -120,7 +120,7 @@ def owner_only(func):
     return wrapper
 
 # =========================
-# FITUR BARU: .rekap - UNTUK MENGHITUNG FEE OTOMATIS
+# TAMBAHKAN KODE .rekap DI SINI ↓
 # =========================
 @client.on(events.NewMessage(pattern=r"\.rekap(?:\s+([\d.]+))?$"))
 @owner_only
@@ -144,8 +144,7 @@ async def calculate_fee(event):
         processing_msg = await event.reply(f"🔄 Menghitung fee dengan {persentase}%...")
 
         # DATA AWAL - BISA DIUBAH SESUKA HATI!
-        # Type: "P" atau "LF" = sama artinya, "" = tanpa P/LF
-        data_B = {  # TIM B
+        data_B = {
             "EL": {"nominal": 10, "type": "P"},
             "COLI": {"nominal": 40, "type": "P"},
             "EDI": {"nominal": 18, "type": "P"},
@@ -159,7 +158,7 @@ async def calculate_fee(event):
             "RAUL": {"nominal": 40, "type": "P"}
         }
 
-        data_K = {  # TIM K
+        data_K = {
             "VIS": {"nominal": 78, "type": "P"},
             "REZA": {"nominal": 125, "type": "P"},
             "SAS": {"nominal": 4, "type": "P"},
@@ -171,14 +170,11 @@ async def calculate_fee(event):
             "MAL": {"nominal": 30, "type": "P"}
         }
 
-        # Fungsi untuk menghitung hasil
         def hitung_fee(nominal, tipe, persen):
-            if tipe == "P" or tipe == "LF":  # Ada tulisan P atau LF
-                # nominal - persen%
+            if tipe == "P" or tipe == "LF":
                 fee = nominal - (nominal * persen / 100)
                 return round(fee)
-            else:  # Tidak ada P/LF
-                # nominal × (persentase × 2)%
+            else:
                 fee = nominal * (persen * 2 / 100)
                 return round(fee)
 
@@ -191,7 +187,6 @@ async def calculate_fee(event):
             tipe = data["type"]
             hasil = hitung_fee(nominal, tipe, persentase)
             hasil_B.append((nama, nominal, hasil, tipe))
-            # SEMUA MASUK TOTAL FEE (baik yang P/LF maupun tanpa P/LF)
             total_fee_B += hasil
 
         # Proses perhitungan untuk Tim K
@@ -203,7 +198,6 @@ async def calculate_fee(event):
             tipe = data["type"]
             hasil = hitung_fee(nominal, tipe, persentase)
             hasil_K.append((nama, nominal, hasil, tipe))
-            # SEMUA MASUK TOTAL FEE (baik yang P/LF maupun tanpa P/LF)
             total_fee_K += hasil
 
         # Format output
@@ -235,9 +229,6 @@ async def calculate_fee(event):
     except Exception as e:
         await event.reply(f"❌ Error menghitung fee: {str(e)}")
 
-# =========================
-# FITUR BARU: .setrekap - UNTUK MENGUBAH DATA REKAP
-# =========================
 @client.on(events.NewMessage(pattern=r"\.setrekap$"))
 @owner_only
 async def set_rekap_data(event):
@@ -245,15 +236,13 @@ async def set_rekap_data(event):
     help_text = """
 📝 **CARA MENGUBAH DATA REKAP:**
 
-Untuk mengubah data rekap, Anda perlu mengedit langsung di kode bot:
+Edit dictionary `data_B` dan `data_K` di fungsi `calculate_fee`:
 
-1. **Cari fungsi `calculate_fee`** di kode
-2. **Edit dictionary `data_B` dan `data_K`**
-3. **Format data:**
-   ```python
-   "NAMA": {"nominal": 100, "type": "P"}   # Dengan P
-   "NAMA": {"nominal": 100, "type": "LF"}  # Dengan LF  
-   "NAMA": {"nominal": 100, "type": ""}    # Tanpa P/LF
+**Format:**
+```python
+"NAMA": {"nominal": 100, "type": "P"}   # Dengan P
+"NAMA": {"nominal": 100, "type": "LF"}  # Dengan LF  
+"NAMA": {"nominal": 100, "type": ""}    # Tanpa P/LF
 
 # =========================
 # FITUR BARU: .sharepm - BROADCAST KE SEMUA PRIVATE CHAT
@@ -1504,4 +1493,3 @@ if __name__ == '__main__':
         logger.error(f"❌ Fatal error: {e}")
     finally:
         logger.info("🔴 Bot stopped")
-
